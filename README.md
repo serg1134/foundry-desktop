@@ -2,6 +2,8 @@
 
 Foundry is a Windows-first conversational builder that turns a description into a working desktop application. It can create projects from templates, edit them with an OpenAI coding agent, compile and preview them locally, launch them as standalone desktop windows, and package them as NSIS Windows installers.
 
+Foundry is open-source software under the [MIT License](LICENSE). Windows releases follow the documented [Code signing policy](CODE_SIGNING.md), and security issues should be reported using the process in [SECURITY.md](SECURITY.md).
+
 ## Product workflow
 
 1. Create a Blank, Notes, or Dashboard project.
