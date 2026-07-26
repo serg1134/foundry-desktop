@@ -1,0 +1,31 @@
+name: Release Foundry for Windows
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build update artifacts
+        shell: powershell
+        env:
+          FOUNDRY_UPDATE_URL: https://github.com/serg1134/foundry-desktop/releases/latest/download
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1 -OutputDirectory release
+      - name: Publish GitHub Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create $env:GITHUB_REF_NAME release/Foundry-Setup-*.exe release/Foundry-Setup-*.exe.blockmap release/latest.yml --title "Foundry $env:GITHUB_REF_NAME" --generate-notes

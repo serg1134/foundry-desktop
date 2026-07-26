@@ -1,6 +1,10 @@
 # Releasing Foundry
 
-Foundry uses an HTTPS generic update feed. Each release folder must expose `latest.yml`, the matching installer, and its block map at the URL configured in the installed app.
+Foundry uses the public GitHub Releases feed at `https://github.com/serg1134/foundry-desktop/releases/latest/download`. Each release exposes `latest.yml`, the matching installer, and its block map.
+
+## Automated GitHub release
+
+After updating the version and pushing the source, create and push a matching tag such as `v0.3.0`. The Windows release workflow runs tests, builds the installer and update metadata, and publishes the GitHub Release automatically.
 
 ## Build an unsigned test release
 
