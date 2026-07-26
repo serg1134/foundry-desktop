@@ -1,0 +1,1 @@
+.success-banner{position:fixed;z-index:80;top:68px;left:50%;transform:translateX(-50%);display:flex;gap:9px;align-items:center;padding:10px 15px;border:1px solid rgba(68,199,138,.35);border-radius:8px;background:#10251b;color:#71dda7;box-shadow:var(--shadow);font-size:12px;font-weight:700}.error-banner{z-index:90}

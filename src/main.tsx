@@ -1,0 +1,2 @@
+import React from'react';import ReactDOM from'react-dom/client';import{App}from'./App';import'../styles.css';import'./react.css';import'./versions.css';import'./agent.css';import'./notifications.css';import'./preview.css';import'./diagnostics.css';import'./config.css';import'./onboarding.css';import'./help.css';import'./home.css';import'./release.css';
+ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);

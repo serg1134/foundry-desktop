@@ -1,0 +1,11 @@
+node_modules/
+out/
+dist/
+release/
+.tools/
+*.zip
+SHASUMS256.txt
+*.log
+.env.release
+*.pfx
+*.p12

@@ -1,0 +1,52 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { WorkspaceService, resolveProjectPath } from '../src/main/workspace.ts';
+
+test('resolveProjectPath rejects paths outside the project',()=>{
+  const root=join(tmpdir(),'foundry-root');
+  assert.throws(()=>resolveProjectPath(root,'../secret.txt'),/escapes/);
+  assert.throws(()=>resolveProjectPath(root,join(tmpdir(),'absolute.txt')),/relative/);
+  assert.equal(resolveProjectPath(root,'src/App.tsx'),join(root,'src','App.tsx'));
+});
+
+test('workspace creates, reads, writes, lists, and audits a project',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-workspace-'));
+  const projectsRoot=join(sandbox,'projects');
+  await mkdir(projectsRoot);
+  const service=new WorkspaceService(join(sandbox,'state','projects.json'));
+  const project=await service.createProject(projectsRoot,'Test Desktop App');
+  const projects=await service.listProjects();
+  assert.equal(projects[0].id,project.id);
+  const files=await service.listFiles(project);
+  assert.ok(files.some(file=>file.path==='src/main.tsx'));
+  assert.ok(files.every(file=>!file.path.startsWith('.foundry/')));
+  const original=await service.readText(project,'src/main.tsx');
+  assert.match(original,/Test Desktop App/);
+  await service.writeText(project,'src/main.tsx','export const ready = true;\n');
+  assert.equal(await readFile(join(project.root,'src','main.tsx'),'utf8'),'export const ready = true;\n');
+  const activity=await service.activity(project);
+  assert.equal(activity[0].type,'file.written');
+  assert.equal(activity[1].type,'project.created');
+});
+
+test('workspace refuses unsupported and oversized writes',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-limits-'));
+  const projectsRoot=join(sandbox,'projects');
+  await mkdir(projectsRoot);
+  const service=new WorkspaceService(join(sandbox,'projects.json'));
+  const project=await service.createProject(projectsRoot,'Limits');
+  await assert.rejects(service.writeText(project,'payload.exe','nope'),/not editable/);
+  await assert.rejects(service.writeText(project,'large.txt','x'.repeat(1_000_001)),/1 MB/);
+  await assert.rejects(service.readText(project,'../outside.txt'),/escapes/);
+});
+
+test('workspace reads and writes supported dotfiles',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-dotfile-')),registry=join(sandbox,'registry.json'),parent=join(sandbox,'projects');await mkdir(parent);
+  const service=new WorkspaceService(registry),project=await service.createProject(parent,'Dotfiles');
+  assert.equal(await service.readText(project,'.gitignore'),'.foundry/\nnode_modules/\nout/\ndist/\ndist-installer/\ntarget/\n');
+  await service.writeText(project,'.gitignore','node_modules/\n');
+  assert.equal(await service.readText(project,'.gitignore'),'node_modules/\n');
+});

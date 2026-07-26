@@ -1,0 +1,2 @@
+export type TemplateId='blank'|'notes'|'dashboard';
+export const projectTemplates=[{id:'blank' as const,name:'Blank canvas',description:'A minimal React desktop app ready for any prompt.'},{id:'notes' as const,name:'Notes starter',description:'A working local notes app with search and editing.'},{id:'dashboard' as const,name:'Dashboard starter',description:'A polished dashboard with cards, navigation, and activity.'}];
