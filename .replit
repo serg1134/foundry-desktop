@@ -1,7 +1,21 @@
-modules = ["nodejs-20", "web"]
+run = "npm run gateway:dev"
+modules = ["nodejs-22", "web"]
 
 [nix]
 channel = "stable-25_05"
 
+[env]
+FOUNDRY_GATEWAY_HOST = "0.0.0.0"
+FOUNDRY_GATEWAY_PORT = "3000"
+FOUNDRY_GATEWAY_DATABASE = "data/foundry-gateway.sqlite"
+
 [agent]
 expertMode = true
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[deployment]
+run = ["sh", "-c", "npm run gateway:dev"]
+deploymentTarget = "cloudrun"
