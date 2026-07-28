@@ -6,6 +6,7 @@ export type ProjectConfig={
   displayName:string;description:string;version:string;publisher:string;appId:string;
   window:{width:number;height:number;minWidth:number;minHeight:number;resizable:boolean;maximizable:boolean};
   installer:{oneClick:boolean;allowDirectorySelection:boolean;desktopShortcut:boolean;startMenuShortcut:boolean};
+  capabilities:{openTextFile:boolean;saveTextFile:boolean;folderRead:boolean;database:boolean;clipboardWrite:boolean;notifications:boolean};
   icon?:string;
 };
 
@@ -23,12 +24,12 @@ export class ProjectConfigService{
   }
 
   private path(project:ProjectRecord):string{return join(project.root,'.foundry','app.json')}
-  private defaults(project:ProjectRecord):ProjectConfig{const id=safeId(project.name);return{displayName:project.name,description:`Desktop app created with Foundry`,version:'0.1.0',publisher:'',appId:`com.foundry.${id}`,window:{width:1200,height:800,minWidth:720,minHeight:480,resizable:true,maximizable:true},installer:{oneClick:false,allowDirectorySelection:true,desktopShortcut:true,startMenuShortcut:true}}}
+  private defaults(project:ProjectRecord):ProjectConfig{const id=safeId(project.name);return{displayName:project.name,description:`Desktop app created with Foundry`,version:'0.1.0',publisher:'',appId:`com.foundry.${id}`,window:{width:1200,height:800,minWidth:720,minHeight:480,resizable:true,maximizable:true},installer:{oneClick:false,allowDirectorySelection:true,desktopShortcut:true,startMenuShortcut:true},capabilities:{openTextFile:true,saveTextFile:true,folderRead:false,database:false,clipboardWrite:false,notifications:false}}}
   private validate(input:ProjectConfig):ProjectConfig{
     const displayName=input.displayName?.trim(),description=input.description?.trim()??'',publisher=input.publisher?.trim()??'',appId=input.appId?.trim(),version=input.version?.trim();
     if(!displayName||displayName.length>80)throw new Error('App name must be between 1 and 80 characters.');if(description.length>240)throw new Error('Description must be 240 characters or fewer.');if(publisher.length>100)throw new Error('Publisher must be 100 characters or fewer.');if(!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version))throw new Error('Version must use semantic versioning, such as 1.0.0.');if(!/^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9-]+)+$/.test(appId))throw new Error('Application ID must use reverse-domain form, such as com.company.app.');
     const window={width:integer(input.window?.width,640,3840,'Window width'),height:integer(input.window?.height,480,2160,'Window height'),minWidth:integer(input.window?.minWidth,320,3840,'Minimum width'),minHeight:integer(input.window?.minHeight,240,2160,'Minimum height'),resizable:Boolean(input.window?.resizable),maximizable:Boolean(input.window?.maximizable)};if(window.minWidth>window.width||window.minHeight>window.height)throw new Error('Minimum window size cannot exceed the initial window size.');
-    return{displayName,description,version,publisher,appId,window,installer:{oneClick:Boolean(input.installer?.oneClick),allowDirectorySelection:Boolean(input.installer?.allowDirectorySelection),desktopShortcut:Boolean(input.installer?.desktopShortcut),startMenuShortcut:Boolean(input.installer?.startMenuShortcut)},...(input.icon?{icon:input.icon}:{})};
+    return{displayName,description,version,publisher,appId,window,installer:{oneClick:Boolean(input.installer?.oneClick),allowDirectorySelection:Boolean(input.installer?.allowDirectorySelection),desktopShortcut:Boolean(input.installer?.desktopShortcut),startMenuShortcut:Boolean(input.installer?.startMenuShortcut)},capabilities:{openTextFile:Boolean(input.capabilities?.openTextFile),saveTextFile:Boolean(input.capabilities?.saveTextFile),folderRead:Boolean(input.capabilities?.folderRead),database:Boolean(input.capabilities?.database),clipboardWrite:Boolean(input.capabilities?.clipboardWrite),notifications:Boolean(input.capabilities?.notifications)},...(input.icon?{icon:input.icon}:{})};
   }
 }
 

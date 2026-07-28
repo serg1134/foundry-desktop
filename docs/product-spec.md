@@ -10,7 +10,7 @@ A Windows user who needs a focused personal or internal tool but does not want t
 
 ## First successful workflow
 
-1. Create a project from the supported Tauri + React template.
+1. Create a project from a supported Electron + React starter.
 2. Describe a change in plain language.
 3. Review the agent's plan and file activity.
 4. Run automated checks and repair compilation errors.
@@ -21,7 +21,7 @@ A Windows user who needs a focused personal or internal tool but does not want t
 ## MVP boundaries
 
 - Windows builder first.
-- One generated-app stack: Tauri, React, and TypeScript.
+- One generated-app stack: Electron, React, and TypeScript.
 - Local projects and source ownership.
 - Controlled tools instead of unrestricted model shell access.
 - No collaboration, marketplace, cloud workspaces, or macOS build workers in the first release.
@@ -29,4 +29,3 @@ A Windows user who needs a focused personal or internal tool but does not want t
 ## Safety model
 
 The agent may read and search the active project, apply structured patches, create files inside approved directories, and invoke allow-listed package scripts. Destructive operations, external directories, credential access, and arbitrary shell commands require explicit approval or remain unavailable.
-

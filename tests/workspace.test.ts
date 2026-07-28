@@ -22,6 +22,8 @@ test('workspace creates, reads, writes, lists, and audits a project',async()=>{
   assert.equal(projects[0].id,project.id);
   const files=await service.listFiles(project);
   assert.ok(files.some(file=>file.path==='src/main.tsx'));
+  assert.ok(files.some(file=>file.path==='src/foundry-desktop.d.ts'));
+  const desktopTypes=await service.readText(project,'src/foundry-desktop.d.ts');assert.match(desktopTypes,/writeClipboardText/);assert.match(desktopTypes,/showNotification/);assert.match(desktopTypes,/chooseFolder/);assert.match(desktopTypes,/database:/);
   assert.ok(files.every(file=>!file.path.startsWith('.foundry/')));
   const original=await service.readText(project,'src/main.tsx');
   assert.match(original,/Test Desktop App/);
@@ -30,6 +32,10 @@ test('workspace creates, reads, writes, lists, and audits a project',async()=>{
   const activity=await service.activity(project);
   assert.equal(activity[0].type,'file.written');
   assert.equal(activity[1].type,'project.created');
+  await service.record(project,'runtime.error','Renderer exited unexpectedly.');
+  const diagnostics=await service.activity(project);
+  assert.equal(diagnostics[0].type,'runtime.error');
+  assert.equal(diagnostics[0].detail,'Renderer exited unexpectedly.');
 });
 
 test('workspace refuses unsupported and oversized writes',async()=>{
@@ -49,4 +55,10 @@ test('workspace reads and writes supported dotfiles',async()=>{
   assert.equal(await service.readText(project,'.gitignore'),'.foundry/\nnode_modules/\nout/\ndist/\ndist-installer/\ntarget/\n');
   await service.writeText(project,'.gitignore','node_modules/\n');
   assert.equal(await service.readText(project,'.gitignore'),'node_modules/\n');
+});
+
+test('workflow templates include labeled controls and local persistence',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-templates-')),parent=join(sandbox,'projects');await mkdir(parent);const service=new WorkspaceService(join(sandbox,'registry.json'));
+  const tasks=await service.createProject(parent,'Task Starter','tasks'),taskSource=await service.readText(tasks,'src/main.tsx');assert.match(taskSource,/aria-label="Task name"/);assert.match(taskSource,/localStorage/);assert.match(taskSource,/Add task/);assert.match(taskSource,/filter==='All'\?true:/);
+  const expenses=await service.createProject(parent,'Expense Starter','expenses'),expenseSource=await service.readText(expenses,'src/main.tsx');assert.match(expenseSource,/aria-label="Description"/);assert.match(expenseSource,/aria-label="Amount"/);assert.match(expenseSource,/Add expense/);
 });
