@@ -2,10 +2,12 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ActivityEntry, ProjectFile, ProjectRecord } from '../main/workspace';
 import type { TemplateId } from '../templates.ts';
 import type { Checkpoint, CheckpointDiff } from '../main/checkpoints';
-import type { AgentEvent, AgentResult } from '../main/agent';
+import type { AgentAttachment, AgentEvent, AgentResult } from '../main/agent';
 import type { PublicSettings } from '../main/settings';
 import type { ProjectConfig } from '../main/project-config';
 import type { UpdateStatus } from '../main/updates';
+import type { BenchmarkSnapshot } from '../main/benchmarks';
+import type { ProviderId } from '../main/providers';
 
 const api={
   getVersion:():Promise<string>=>ipcRenderer.invoke('app:get-version'),
@@ -26,12 +28,28 @@ const api={
   },
   settings:{
     get:():Promise<PublicSettings>=>ipcRenderer.invoke('settings:get'),
-    saveApiKey:(key:string):Promise<PublicSettings>=>ipcRenderer.invoke('settings:save-key',key),
-    clearApiKey:():Promise<PublicSettings>=>ipcRenderer.invoke('settings:clear-key')
+    saveProvider:(provider:ProviderId,key:string,model:string):Promise<PublicSettings>=>ipcRenderer.invoke('settings:save-provider',provider,key,model),
+    selectProvider:(provider:ProviderId,model:string):Promise<PublicSettings>=>ipcRenderer.invoke('settings:select-provider',provider,model),
+    clearProvider:(provider:ProviderId):Promise<PublicSettings>=>ipcRenderer.invoke('settings:clear-provider',provider),
+    cloudAuth:(email:string,password:string,create:boolean):Promise<PublicSettings>=>ipcRenderer.invoke('settings:cloud-auth',email,password,create),
+    useMode:(mode:'hosted'|'byok'):Promise<PublicSettings>=>ipcRenderer.invoke('settings:use-mode',mode),
+    cloudLogout:():Promise<PublicSettings>=>ipcRenderer.invoke('settings:cloud-logout'),
+    cloudRefresh:():Promise<PublicSettings>=>ipcRenderer.invoke('settings:cloud-refresh'),
+    cloudPackages:():Promise<{id:string;name:string;credits:number}[]>=>ipcRenderer.invoke('settings:cloud-packages'),
+    cloudCheckout:(packageId:string):Promise<boolean>=>ipcRenderer.invoke('settings:cloud-checkout',packageId)
   },
   agent:{
-    run:(projectId:string,prompt:string):Promise<AgentResult>=>ipcRenderer.invoke('agent:run',projectId,prompt),
+    run:(projectId:string,prompt:string,attachments:AgentAttachment[]=[]):Promise<AgentResult>=>ipcRenderer.invoke('agent:run',projectId,prompt,attachments),
+    cancel:():Promise<boolean>=>ipcRenderer.invoke('agent:cancel'),
+    undo:(projectId:string):Promise<boolean>=>ipcRenderer.invoke('agent:undo',projectId),
+    accept:(projectId:string):Promise<boolean>=>ipcRenderer.invoke('agent:accept',projectId),
     onEvent:(listener:(event:AgentEvent)=>void):(()=>void)=>{const handler=(_:unknown,event:AgentEvent)=>listener(event);ipcRenderer.on('agent:event',handler);return()=>ipcRenderer.removeListener('agent:event',handler)}
+  },
+  attachments:{choose:():Promise<AgentAttachment[]>=>ipcRenderer.invoke('attachments:choose')},
+  benchmarks:{
+    get:():Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:get'),
+    run:(id:string):Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:run',id),
+    recheck:(id:string):Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:recheck',id)
   },
   preview:{build:(projectId:string):Promise<{html:string;warnings:string[]}>=>ipcRenderer.invoke('preview:build',projectId)},
   runtime:{
@@ -39,7 +57,7 @@ const api={
     onDiagnostic:(listener:(diagnostic:{projectId:string;message:string})=>void):(()=>void)=>{const handler=(_:unknown,diagnostic:{projectId:string;message:string})=>listener(diagnostic);ipcRenderer.on('runtime:diagnostic',handler);return()=>ipcRenderer.removeListener('runtime:diagnostic',handler)}
   },
   installer:{
-    build:(projectId:string):Promise<{installerPath:string;outputDirectory:string;signed:boolean}>=>ipcRenderer.invoke('installer:build',projectId),
+    build:(projectId:string):Promise<{installerPath:string;checksumPath:string;outputDirectory:string;signed:boolean}>=>ipcRenderer.invoke('installer:build',projectId),
     reveal:(path:string):Promise<boolean>=>ipcRenderer.invoke('installer:reveal',path),
     onProgress:(listener:(message:string)=>void):(()=>void)=>{const handler=(_:unknown,message:string)=>listener(message);ipcRenderer.on('installer:event',handler);return()=>ipcRenderer.removeListener('installer:event',handler)}
   },

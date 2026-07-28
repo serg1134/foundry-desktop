@@ -1,10 +1,11 @@
 import { app } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import updaterPackage from 'electron-updater';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export type UpdatePhase='disabled'|'idle'|'checking'|'available'|'current'|'downloading'|'ready'|'error';
 export type UpdateStatus={phase:UpdatePhase;message:string;version?:string;progress?:number};
+const { autoUpdater }=updaterPackage;
 
 export class UpdateService{
   private status:UpdateStatus;

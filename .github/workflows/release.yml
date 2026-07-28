@@ -19,6 +19,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Verify tag matches package version
+        shell: powershell
+        run: |
+          $packageVersion=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tag=$env:GITHUB_REF_NAME.TrimStart('v')
+          if($tag -ne $packageVersion){throw "Tag v$tag does not match package version $packageVersion."}
       - name: Build update artifacts
         shell: powershell
         env:
@@ -28,4 +34,4 @@ jobs:
         shell: powershell
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create $env:GITHUB_REF_NAME release/Foundry-Setup-*.exe release/Foundry-Setup-*.exe.blockmap release/latest.yml --title "Foundry $env:GITHUB_REF_NAME" --generate-notes
+        run: gh release create $env:GITHUB_REF_NAME release/Foundry-Setup-*.exe release/Foundry-Setup-*.exe.blockmap release/Foundry-Setup-*.exe.sha256 release/latest.yml --title "Foundry $env:GITHUB_REF_NAME" --generate-notes
