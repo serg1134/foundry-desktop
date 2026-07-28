@@ -17,5 +17,5 @@ localPort = 3000
 externalPort = 80
 
 [deployment]
-run = ["sh", "-c", "npm run gateway:dev"]
+run = "npm run gateway:dev"
 deploymentTarget = "cloudrun"
