@@ -7,12 +7,13 @@ import type { PreviewService } from './preview';
 import type { ProjectConfigService } from './project-config';
 
 export type InstallerResult={installerPath:string;checksumPath:string;outputDirectory:string;signed:boolean};
+export type InstallerBuildOptions={qualification?:boolean};
 
 export class InstallerService{
   constructor(private readonly preview:PreviewService,private readonly configs:ProjectConfigService){}
 
-  async build(project:ProjectRecord,onProgress:(message:string)=>void=()=>{}):Promise<InstallerResult>{
-    const config=await this.configs.get(project),staging=join(project.root,'.foundry','installer'),outputDirectory=join(project.root,'.foundry','releases');
+  async build(project:ProjectRecord,onProgress:(message:string)=>void=()=>{},options:InstallerBuildOptions={}):Promise<InstallerResult>{
+    const config=await this.configs.get(project),staging=join(project.root,'.foundry',options.qualification?'qualification-installer':'installer'),outputDirectory=join(project.root,'.foundry',options.qualification?'qualification-releases':'releases');
     await mkdir(staging,{recursive:true});await mkdir(outputDirectory,{recursive:true});
     onProgress('Compiling the application…');
     const rendered=await this.preview.build(project,true);
@@ -21,7 +22,7 @@ export class InstallerService{
     await writeFile(join(staging,'preload.cjs'),runtimePreload,'utf8');
     await writeFile(join(staging,'package.json'),JSON.stringify({name:safeId(config.displayName),productName:config.displayName,description:config.description,author:config.publisher||'Foundry user',version:config.version,private:true,main:'main.cjs'},null,2),'utf8');
     onProgress('Packaging the Windows application…');
-    await build({projectDir:staging,targets:Platform.WINDOWS.createTarget('nsis',[Arch.x64]),config:{appId:config.appId,productName:config.displayName,electronVersion:process.versions.electron,asar:false,files:['app.html','main.cjs','preload.cjs','package.json'],directories:{output:outputDirectory},artifactName:'${productName}-Setup-${version}.${ext}',win:{target:'nsis',...(config.icon?{icon:join(project.root,config.icon)}:{})},nsis:{oneClick:config.installer.oneClick,allowToChangeInstallationDirectory:config.installer.allowDirectorySelection,createDesktopShortcut:config.installer.desktopShortcut,createStartMenuShortcut:config.installer.startMenuShortcut}}});
+    await build({projectDir:staging,targets:Platform.WINDOWS.createTarget('nsis',[Arch.x64]),config:{appId:config.appId,productName:config.displayName,electronVersion:process.versions.electron,asar:false,files:['app.html','main.cjs','preload.cjs','package.json'],directories:{output:outputDirectory},artifactName:'${productName}-Setup-${version}.${ext}',win:{target:'nsis',...(config.icon?{icon:join(project.root,config.icon)}:{})},nsis:{oneClick:options.qualification?true:config.installer.oneClick,allowToChangeInstallationDirectory:options.qualification?false:config.installer.allowDirectorySelection,createDesktopShortcut:options.qualification?false:config.installer.desktopShortcut,createStartMenuShortcut:options.qualification?false:config.installer.startMenuShortcut}}});
     const files=await readdir(outputDirectory),installer=files.find(name=>/\.exe$/i.test(name)&&!/unpacked/i.test(name));
     if(!installer)throw new Error('Packaging completed, but no Windows installer was produced.');
     const installerPath=join(outputDirectory,installer),checksum=createHash('sha256').update(await readFile(installerPath)).digest('hex'),checksumPath=`${installerPath}.sha256`;

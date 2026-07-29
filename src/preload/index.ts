@@ -8,6 +8,8 @@ import type { ProjectConfig } from '../main/project-config';
 import type { UpdateStatus } from '../main/updates';
 import type { BenchmarkSnapshot } from '../main/benchmarks';
 import type { ProviderId } from '../main/providers';
+import type { CrashReport } from '../main/crash-reports';
+import type { QualificationResult } from '../main/release-qualification';
 
 const api={
   getVersion:():Promise<string>=>ipcRenderer.invoke('app:get-version'),
@@ -46,6 +48,10 @@ const api={
     onEvent:(listener:(event:AgentEvent)=>void):(()=>void)=>{const handler=(_:unknown,event:AgentEvent)=>listener(event);ipcRenderer.on('agent:event',handler);return()=>ipcRenderer.removeListener('agent:event',handler)}
   },
   attachments:{choose:():Promise<AgentAttachment[]>=>ipcRenderer.invoke('attachments:choose')},
+  diagnostics:{
+    list:(projectId?:string):Promise<CrashReport[]>=>ipcRenderer.invoke('diagnostics:list',projectId),
+    copy:(id:string):Promise<boolean>=>ipcRenderer.invoke('diagnostics:copy',id)
+  },
   benchmarks:{
     get:():Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:get'),
     run:(id:string):Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:run',id),
@@ -60,6 +66,10 @@ const api={
     build:(projectId:string):Promise<{installerPath:string;checksumPath:string;outputDirectory:string;signed:boolean}>=>ipcRenderer.invoke('installer:build',projectId),
     reveal:(path:string):Promise<boolean>=>ipcRenderer.invoke('installer:reveal',path),
     onProgress:(listener:(message:string)=>void):(()=>void)=>{const handler=(_:unknown,message:string)=>listener(message);ipcRenderer.on('installer:event',handler);return()=>ipcRenderer.removeListener('installer:event',handler)}
+  },
+  qualification:{
+    run:(projectId:string):Promise<QualificationResult>=>ipcRenderer.invoke('qualification:run',projectId),
+    onProgress:(listener:(message:string)=>void):(()=>void)=>{const handler=(_:unknown,message:string)=>listener(message);ipcRenderer.on('qualification:event',handler);return()=>ipcRenderer.removeListener('qualification:event',handler)}
   },
   projectConfig:{
     get:(projectId:string):Promise<ProjectConfig>=>ipcRenderer.invoke('project-config:get',projectId),

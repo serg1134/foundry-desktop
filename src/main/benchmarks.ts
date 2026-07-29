@@ -4,7 +4,7 @@ import type { WorkflowStep } from './agent';
 
 export type BenchmarkCase={id:string;category:string;name:string;prompt:string;workflow?:WorkflowStep[]};
 export type BenchmarkFailureStage='generation'|'compile'|'runtime'|'workflow'|'persistence'|'visual'|'unknown';
-export type BenchmarkResult={id:string;benchmarkId:string;passed:boolean;durationMs:number;checksPassed:number;checksTotal:number;filesChanged:number;completedAt:string;projectId?:string;recheck?:boolean;failure?:string;failureStage?:BenchmarkFailureStage};
+export type BenchmarkResult={id:string;benchmarkId:string;passed:boolean;durationMs:number;checksPassed:number;checksTotal:number;filesChanged:number;completedAt:string;projectId?:string;recheck?:boolean;failure?:string;failureStage?:BenchmarkFailureStage;repairAttempts?:number;repaired?:boolean;repairStages?:BenchmarkFailureStage[]};
 export type BenchmarkSnapshot={cases:BenchmarkCase[];results:BenchmarkResult[];successRate:number};
 
 export const benchmarkCases:BenchmarkCase[]=[
