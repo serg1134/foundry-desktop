@@ -1,11 +1,13 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { WorkflowStep } from './agent';
 
 export type BenchmarkCase={id:string;category:string;name:string;prompt:string;workflow?:WorkflowStep[]};
 export type BenchmarkFailureStage='generation'|'compile'|'runtime'|'workflow'|'persistence'|'visual'|'unknown';
-export type BenchmarkResult={id:string;benchmarkId:string;passed:boolean;durationMs:number;checksPassed:number;checksTotal:number;filesChanged:number;completedAt:string;projectId?:string;recheck?:boolean;failure?:string;failureStage?:BenchmarkFailureStage;repairAttempts?:number;repaired?:boolean;repairStages?:BenchmarkFailureStage[]};
-export type BenchmarkSnapshot={cases:BenchmarkCase[];results:BenchmarkResult[];successRate:number};
+export type BenchmarkResult={id:string;benchmarkId:string;passed:boolean;durationMs:number;checksPassed:number;checksTotal:number;filesChanged:number;completedAt:string;projectId?:string;recheck?:boolean;failure?:string;failureStage?:BenchmarkFailureStage;repairAttempts?:number;repaired?:boolean;repairStages?:BenchmarkFailureStage[];campaignId?:string;campaignCycle?:number};
+export type BenchmarkCampaignCycle={cycle:number;startedAt:string;completedAt:string;passed:number;total:number;successRate:number;qualified:boolean};
+export type BenchmarkCampaign={id:string;status:'running'|'passed'|'failed'|'cancelled';startedAt:string;completedAt?:string;currentCycle:number;currentCase:number;totalCycles:number;totalCases:number;minimumPassed:number;cycles:BenchmarkCampaignCycle[]};
+export type BenchmarkSnapshot={cases:BenchmarkCase[];results:BenchmarkResult[];successRate:number;campaign:BenchmarkCampaign|null;releaseReady:boolean};
 
 export const benchmarkCases:BenchmarkCase[]=[
  {id:'notes',category:'Productivity',name:'Searchable notes',prompt:'Build a desktop notes app where I can create a note, edit its title and body, and search notes. Use local storage and a polished dark interface. Include a button labeled New note, a title field labeled Note title, and a search field labeled Search notes.',workflow:[{action:'click',target:'New note',value:''},{action:'fill',target:'Note title',value:'Baseline note'},{action:'fill',target:'Search notes',value:'Baseline note'},{action:'assert_text',target:'',value:'Baseline note'}]},
@@ -21,11 +23,18 @@ export const benchmarkCases:BenchmarkCase[]=[
 ];
 
 export class BenchmarkService{
- constructor(private readonly resultsFile:string){}
- async snapshot():Promise<BenchmarkSnapshot>{const results=await this.read();const latest=new Map<string,BenchmarkResult>();for(const result of results)if(!latest.has(result.benchmarkId))latest.set(result.benchmarkId,result);const completed=[...latest.values()],passed=completed.filter(result=>result.passed).length;return{cases:benchmarkCases,results,successRate:completed.length?Math.round(passed/completed.length*100):0}}
+ private readonly campaignFile:string;
+ constructor(private readonly resultsFile:string,campaignFile=join(dirname(resultsFile),'campaign.json')){this.campaignFile=campaignFile}
+ async snapshot():Promise<BenchmarkSnapshot>{const results=await this.read(),campaign=await this.readCampaign(),latest=new Map<string,BenchmarkResult>();for(const result of results)if(!latest.has(result.benchmarkId))latest.set(result.benchmarkId,result);const completed=[...latest.values()],passed=completed.filter(result=>result.passed).length;return{cases:benchmarkCases,results,successRate:completed.length?Math.round(passed/completed.length*100):0,campaign,releaseReady:campaign?.status==='passed'}}
  async record(result:BenchmarkResult):Promise<BenchmarkSnapshot>{const normalized=result.passed?result:{...result,failureStage:result.failureStage??classifyBenchmarkFailure(result.failure??'')};const results=await this.read();await mkdir(dirname(this.resultsFile),{recursive:true});await writeFile(this.resultsFile,JSON.stringify([normalized,...results].slice(0,200),null,2),'utf8');return this.snapshot()}
+ async startCampaign(id:string,totalCycles=3,minimumPassed=9):Promise<BenchmarkCampaign>{const campaign:BenchmarkCampaign={id,status:'running',startedAt:new Date().toISOString(),currentCycle:1,currentCase:0,totalCycles,totalCases:benchmarkCases.length,minimumPassed,cycles:[]};await this.writeCampaign(campaign);return campaign}
+ async updateCampaign(campaign:BenchmarkCampaign):Promise<BenchmarkCampaign>{await this.writeCampaign(campaign);return campaign}
+ async finishCampaignCycle(campaign:BenchmarkCampaign,cycle:number,startedAt:string,results:BenchmarkResult[]):Promise<BenchmarkCampaign>{const passed=results.filter(result=>result.passed).length,total=results.length,summary:BenchmarkCampaignCycle={cycle,startedAt,completedAt:new Date().toISOString(),passed,total,successRate:total?Math.round(passed/total*100):0,qualified:total===benchmarkCases.length&&passed>=campaign.minimumPassed},cycles=[...campaign.cycles.filter(item=>item.cycle!==cycle),summary].sort((a,b)=>a.cycle-b.cycle),complete=cycle>=campaign.totalCycles,status=complete?(cycles.every(item=>item.qualified)?'passed':'failed'):'running',next={...campaign,cycles,currentCycle:complete?cycle:cycle+1,currentCase:complete?benchmarkCases.length:0,status,...(complete?{completedAt:new Date().toISOString()}:{})} as BenchmarkCampaign;await this.writeCampaign(next);return next}
+ async cancelCampaign(campaign:BenchmarkCampaign):Promise<BenchmarkCampaign>{const next:BenchmarkCampaign={...campaign,status:'cancelled',completedAt:new Date().toISOString()};await this.writeCampaign(next);return next}
  case(id:string):BenchmarkCase{const value=benchmarkCases.find(item=>item.id===id);if(!value)throw new Error('Unknown benchmark case.');return value}
  private async read():Promise<BenchmarkResult[]>{try{const value=JSON.parse(await readFile(this.resultsFile,'utf8'));return Array.isArray(value)?value as BenchmarkResult[]:[]}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return[];throw error}}
+ private async readCampaign():Promise<BenchmarkCampaign|null>{try{return JSON.parse(await readFile(this.campaignFile,'utf8')) as BenchmarkCampaign}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return null;throw error}}
+ private async writeCampaign(campaign:BenchmarkCampaign):Promise<void>{await mkdir(dirname(this.campaignFile),{recursive:true});await writeFile(this.campaignFile,JSON.stringify(campaign,null,2),'utf8')}
 }
 
 export function classifyBenchmarkFailure(message:string):BenchmarkFailureStage{const value=message.toLowerCase();if(/compile|typescript|syntax|build failed/.test(value))return'compile';if(/persist|reload|localstorage/.test(value))return'persistence';if(/workflow|visible text|text field|button labeled|could not find/.test(value))return'workflow';if(/screenshot|visual|layout|contrast|viewport/.test(value))return'visual';if(/runtime|rendered no visible|startup|epipe|process/.test(value))return'runtime';if(/openai|agent|safety limit|api|fetch|connection/.test(value))return'generation';return'unknown'}

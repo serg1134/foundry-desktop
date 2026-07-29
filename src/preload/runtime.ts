@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('foundryDesktop',Object.freeze({
+  ai:Object.freeze({request:(payload:Record<string,unknown>):Promise<Record<string,unknown>>=>ipcRenderer.invoke('desktop:ai-request',payload)}),
   openTextFile:():Promise<{name:string;content:string}|null>=>ipcRenderer.invoke('desktop-file:open-text'),
   saveTextFile:(content:string,suggestedName='document.txt'):Promise<boolean>=>ipcRenderer.invoke('desktop-file:save-text',{content,suggestedName}),
   chooseFolder:():Promise<{name:string;files:{path:string;size:number}[];truncated:boolean}|null>=>ipcRenderer.invoke('desktop-folder:choose'),
@@ -11,5 +12,14 @@ contextBridge.exposeInMainWorld('foundryDesktop',Object.freeze({
     list:(namespace:string):Promise<{key:string;value:unknown;updatedAt:string}[]>=>ipcRenderer.invoke('desktop-database:list',{namespace})
   }),
   writeClipboardText:(text:string):Promise<boolean>=>ipcRenderer.invoke('desktop:clipboard-write',text),
-  showNotification:(title:string,body=''):Promise<boolean>=>ipcRenderer.invoke('desktop:notification-show',{title,body})
+  showNotification:(title:string,body=''):Promise<boolean>=>ipcRenderer.invoke('desktop:notification-show',{title,body}),
+  tray:Object.freeze({
+    configure:(tooltip:string,items:{id:string;label:string}[]):Promise<boolean>=>ipcRenderer.invoke('desktop:tray-configure',{tooltip,items}),
+    onAction:(listener:(id:string)=>void):(()=>void)=>{const handler=(_:unknown,id:string)=>listener(id);ipcRenderer.on('foundry-desktop:tray-action',handler);return()=>ipcRenderer.removeListener('foundry-desktop:tray-action',handler)}
+  }),
+  shortcuts:Object.freeze({
+    register:(accelerator:string,id:string):Promise<boolean>=>ipcRenderer.invoke('desktop:shortcut-register',{accelerator,id}),
+    clear:():Promise<boolean>=>ipcRenderer.invoke('desktop:shortcuts-clear'),
+    onAction:(listener:(id:string)=>void):(()=>void)=>{const handler=(_:unknown,id:string)=>listener(id);ipcRenderer.on('foundry-desktop:shortcut-action',handler);return()=>ipcRenderer.removeListener('foundry-desktop:shortcut-action',handler)}
+  })
 }));

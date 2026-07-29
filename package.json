@@ -1,6 +1,6 @@
 {
   "name": "foundry-desktop",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A Windows-first AI desktop application builder.",
   "author": "Foundry",
   "private": true,

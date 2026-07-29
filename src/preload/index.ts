@@ -55,7 +55,10 @@ const api={
   benchmarks:{
     get:():Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:get'),
     run:(id:string):Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:run',id),
-    recheck:(id:string):Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:recheck',id)
+    recheck:(id:string):Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:recheck',id),
+    runCampaign:():Promise<BenchmarkSnapshot>=>ipcRenderer.invoke('benchmarks:campaign-run'),
+    cancelCampaign:():Promise<boolean>=>ipcRenderer.invoke('benchmarks:campaign-cancel'),
+    onCampaign:(listener:(event:{message:string;snapshot:BenchmarkSnapshot})=>void):(()=>void)=>{const handler=(_:unknown,event:{message:string;snapshot:BenchmarkSnapshot})=>listener(event);ipcRenderer.on('benchmarks:event',handler);return()=>ipcRenderer.removeListener('benchmarks:event',handler)}
   },
   preview:{build:(projectId:string):Promise<{html:string;warnings:string[]}>=>ipcRenderer.invoke('preview:build',projectId)},
   runtime:{
@@ -74,6 +77,7 @@ const api={
   projectConfig:{
     get:(projectId:string):Promise<ProjectConfig>=>ipcRenderer.invoke('project-config:get',projectId),
     save:(projectId:string,value:ProjectConfig):Promise<ProjectConfig>=>ipcRenderer.invoke('project-config:save',projectId,value),
+    provisionAi:(projectId:string,value:ProjectConfig):Promise<ProjectConfig>=>ipcRenderer.invoke('project-config:provision-ai',projectId,value),
     chooseIcon:(projectId:string):Promise<ProjectConfig|null>=>ipcRenderer.invoke('project-config:choose-icon',projectId)
   },
   updates:{
