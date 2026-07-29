@@ -2,6 +2,7 @@ import { safeStorage } from 'electron';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { isProviderId, providerDefinition, providerDefinitions, validateProviderModel, type ProviderCredential, type ProviderId } from './providers.ts';
+import { selectBuilderMode, type BuilderMode } from './builder-mode.ts';
 
 type StoredProvider={encryptedApiKey?:string;model?:string};
 type StoredHosted={encryptedToken:string;gatewayUrl:string;email:string;credits:number};
@@ -16,7 +17,7 @@ export class SettingsService{
   async selectProvider(provider:ProviderId,model:string):Promise<PublicSettings>{validateProviderModel(provider,model);const settings=this.migrate(await this.read());settings.providers??={};settings.providers[provider]={...settings.providers[provider],model};settings.activeProvider=provider;await this.write(settings);return this.publicSettings()}
   async clearProvider(provider:ProviderId):Promise<PublicSettings>{const settings=this.migrate(await this.read());if(settings.providers)delete settings.providers[provider];await this.write(settings);return this.publicSettings()}
   async saveHostedSession(value:{token:string;gatewayUrl:string;email:string;credits:number}):Promise<PublicSettings>{if(!safeStorage.isEncryptionAvailable())throw new Error('Secure credential storage is unavailable on this device.');if(!/^https:\/\//.test(value.gatewayUrl)&&!/^http:\/\/127\.0\.0\.1(?::\d+)?$/.test(value.gatewayUrl))throw new Error('Foundry Cloud requires a secure gateway URL.');const settings=this.migrate(await this.read());settings.hosted={encryptedToken:safeStorage.encryptString(value.token).toString('base64'),gatewayUrl:value.gatewayUrl.replace(/\/$/,''),email:value.email,credits:value.credits};settings.mode='hosted';await this.write(settings);return this.publicSettings()}
-  async useMode(mode:'hosted'|'byok'):Promise<PublicSettings>{const settings=this.migrate(await this.read());if(mode==='hosted'&&!settings.hosted?.encryptedToken)throw new Error('Sign in to Foundry Cloud first.');settings.mode=mode;await this.write(settings);return this.publicSettings()}
+  async useMode(mode:BuilderMode):Promise<PublicSettings>{const settings=this.migrate(await this.read());settings.mode=selectBuilderMode(mode);await this.write(settings);return this.publicSettings()}
   async clearHosted():Promise<PublicSettings>{const settings=this.migrate(await this.read());delete settings.hosted;settings.mode='byok';await this.write(settings);return this.publicSettings()}
   async hostedAccess():Promise<{token:string;gatewayUrl:string}>{const settings=this.migrate(await this.read());if(!settings.hosted?.encryptedToken)throw new Error('Sign in to Foundry Cloud first.');if(!safeStorage.isEncryptionAvailable())throw new Error('Secure credential storage is unavailable.');return{token:safeStorage.decryptString(Buffer.from(settings.hosted.encryptedToken,'base64')),gatewayUrl:settings.hosted.gatewayUrl}}
   async updateHostedCredits(credits:number):Promise<PublicSettings>{if(!Number.isInteger(credits)||credits<0)throw new Error('Foundry Cloud returned an invalid credit balance.');const settings=this.migrate(await this.read());if(!settings.hosted)throw new Error('Sign in to Foundry Cloud first.');settings.hosted.credits=credits;await this.write(settings);return this.publicSettings()}
