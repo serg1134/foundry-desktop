@@ -15,7 +15,7 @@ npm.cmd run release:win
 
 Upload the generated `latest.yml`, `Foundry-Setup-<version>.exe`, `.blockmap`, and `.sha256` together. Installers only check the update URL supplied when that installer was built. The release script uses the Windows temporary directory by default to avoid sync-client file locks.
 
-## Build a signed production release
+## Build a signed production release locally
 
 Set the standard electron-builder certificate variables only in the secure release environment:
 
@@ -27,6 +27,23 @@ npm.cmd run release:win
 ```
 
 Never commit the certificate or password. After building, verify the signature in Windows file Properties, install on a clean machine, check for updates from the prior version, download, restart, and confirm the new version in About.
+
+## Sign production releases with SignPath
+
+Tagged GitHub releases use SignPath's GitHub Action. The workflow uploads the unsigned installer as a GitHub Actions artifact, submits it to SignPath, replaces the unsigned installer with the returned file, regenerates the blockmap and update metadata, and requires a valid Authenticode signature before publishing.
+
+Configure these GitHub Actions secrets:
+
+- `SIGNPATH_API_TOKEN`
+- `SIGNPATH_ORGANIZATION_ID`
+
+Configure these GitHub Actions variables:
+
+- `SIGNPATH_PROJECT_SLUG`
+- `SIGNPATH_SIGNING_POLICY_SLUG`
+- `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`
+
+The SignPath artifact configuration must accept the ZIP produced by `actions/upload-artifact`, contain `Foundry-Setup-${version}.exe`, and apply Authenticode signing to that PE file. Install the SignPath GitHub App for this repository and use a SignPath user/API token limited to submitting requests under the configured policy.
 
 ## Version checklist
 
