@@ -31,6 +31,6 @@ contextBridge.exposeInMainWorld('foundryDesktop',Object.freeze({
   }),
   deepLinks:Object.freeze({
     getInitial:():Promise<string|null>=>ipcRenderer.invoke('desktop:deep-link-initial'),
-    onOpen:(listener:(url:string)=>void):(()=>void)=>{const handler=(_:unknown,url:string)=>listener(url);ipcRenderer.on('foundry-desktop:deep-link-open',handler);return()=>ipcRenderer.removeListener('foundry-desktop:deep-link-open',handler)}
+    onOpen:(listener:(url:string)=>void):(()=>void)=>{void ipcRenderer.invoke('desktop:deep-link-ready');const handler=(_:unknown,url:string)=>listener(url);ipcRenderer.on('foundry-desktop:deep-link-open',handler);return()=>ipcRenderer.removeListener('foundry-desktop:deep-link-open',handler)}
   })
 }));
