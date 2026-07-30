@@ -16,5 +16,7 @@ $installer=Get-ChildItem -LiteralPath $OutputDirectory -Filter 'Foundry-Setup-*.
 if(-not $installer){throw 'The Windows installer was not produced.'}
 $hash=(Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash
 Set-Content -LiteralPath "$($installer.FullName).sha256" -Value "$hash  $($installer.Name)" -Encoding ascii
+node (Join-Path $PSScriptRoot 'generate-release-audit.mjs') $OutputDirectory
+if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
 powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'verify-release.ps1') -ReleaseDirectory $OutputDirectory
 exit $LASTEXITCODE
