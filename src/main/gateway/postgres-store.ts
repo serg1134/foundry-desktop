@@ -7,11 +7,16 @@ import type { AppCredential, GatewayDataStore, PurchaseRecord, RateLimitResult }
 const scrypt=promisify(scryptCallback);
 type Row=Record<string,unknown>;
 
+export function postgresSslOptions(env:NodeJS.ProcessEnv=process.env):false|{rejectUnauthorized:boolean}{
+ if(env.FOUNDRY_DATABASE_SSL==='0')return false;
+ return{rejectUnauthorized:env.FOUNDRY_DATABASE_TLS_INSECURE!=='1'};
+}
+
 export class PostgresGatewayStore implements GatewayDataStore{
  private constructor(private readonly pool:Pool,private readonly signupCredits:number){}
  static async connect(connectionString:string,signupCredits=25_000):Promise<PostgresGatewayStore>{
   if(!connectionString)throw new Error('DATABASE_URL is required for PostgreSQL storage.');
-  const pool=new Pool({connectionString,max:Number(process.env.FOUNDRY_DATABASE_POOL_SIZE||10),idleTimeoutMillis:30_000,connectionTimeoutMillis:10_000,ssl:process.env.FOUNDRY_DATABASE_SSL==='0'?false:{rejectUnauthorized:false}}),store=new PostgresGatewayStore(pool,signupCredits);
+  const pool=new Pool({connectionString,max:Number(process.env.FOUNDRY_DATABASE_POOL_SIZE||10),idleTimeoutMillis:30_000,connectionTimeoutMillis:10_000,ssl:postgresSslOptions()}),store=new PostgresGatewayStore(pool,signupCredits);
   try{await store.migrate();return store}catch(error){await pool.end();throw error}
  }
  async close():Promise<void>{await this.pool.end()}

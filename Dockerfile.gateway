@@ -1,6 +1,8 @@
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production FOUNDRY_GATEWAY_HOST=0.0.0.0 FOUNDRY_GATEWAY_PORT=8787 FOUNDRY_GATEWAY_DATABASE=/var/lib/foundry/gateway.sqlite
 WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --omit=optional && npm cache clean --force
 COPY src/main/providers.ts ./src/main/providers.ts
 COPY src/main/gateway ./src/main/gateway
 RUN mkdir -p /var/lib/foundry && chown -R node:node /app /var/lib/foundry

@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { GatewayStore } from '../src/main/gateway/store.ts';
 import { GatewayService } from '../src/main/gateway/service.ts';
+import { postgresSslOptions } from '../src/main/gateway/postgres-store.ts';
+
+test('PostgreSQL TLS verifies certificates unless explicitly overridden',()=>{
+ assert.deepEqual(postgresSslOptions({}),{rejectUnauthorized:true});
+ assert.deepEqual(postgresSslOptions({FOUNDRY_DATABASE_TLS_INSECURE:'1'}),{rejectUnauthorized:false});
+ assert.equal(postgresSslOptions({FOUNDRY_DATABASE_SSL:'0'}),false);
+});
 
 test('gateway accounts use sessions and idempotent credit reservations',async()=>{const store=new GatewayStore(':memory:',100);try{const created=await store.register('Sean@example.com','correct-horse-battery');assert.equal(created.account.email,'sean@example.com');assert.equal(store.authenticate(created.token).credits,100);const first=store.reserve(created.account.id,'request_12345678',40),duplicate=store.reserve(created.account.id,'request_12345678',40);assert.equal(first.id,duplicate.id);assert.equal(store.authenticate(created.token).credits,60);assert.equal(store.settle(created.account.id,first.id,25).settled,25);assert.equal(store.authenticate(created.token).credits,75);assert.equal(store.settle(created.account.id,first.id,10).settled,25)}finally{store.close()}});
 

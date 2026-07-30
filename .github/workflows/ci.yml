@@ -1,0 +1,46 @@
+name: Foundry CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: foundry
+          POSTGRES_PASSWORD: foundry_test_password
+          POSTGRES_DB: foundry_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foundry -d foundry_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      FOUNDRY_TEST_POSTGRES_URL: postgresql://foundry:foundry_test_password@127.0.0.1:5432/foundry_test
+      FOUNDRY_DATABASE_SSL: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Build and smoke-test gateway container
+        run: |
+          docker build -f Dockerfile.gateway -t foundry-gateway:test .
+          docker run -d --name foundry-gateway -p 8787:8787 -e OPENAI_API_KEY=test -e STRIPE_SECRET_KEY=sk_test_placeholder -e STRIPE_WEBHOOK_SECRET=whsec_placeholder -e STRIPE_PRICE_STARTER=price_starter -e STRIPE_PRICE_BUILDER=price_builder -e STRIPE_PRICE_STUDIO=price_studio foundry-gateway:test
+          for attempt in {1..20}; do curl --fail http://127.0.0.1:8787/health/live && exit 0; sleep 1; done
+          docker logs foundry-gateway
+          exit 1

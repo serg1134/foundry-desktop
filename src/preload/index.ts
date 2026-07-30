@@ -66,7 +66,7 @@ const api={
     onDiagnostic:(listener:(diagnostic:{projectId:string;message:string})=>void):(()=>void)=>{const handler=(_:unknown,diagnostic:{projectId:string;message:string})=>listener(diagnostic);ipcRenderer.on('runtime:diagnostic',handler);return()=>ipcRenderer.removeListener('runtime:diagnostic',handler)}
   },
   installer:{
-    build:(projectId:string):Promise<{installerPath:string;checksumPath:string;outputDirectory:string;signed:boolean}>=>ipcRenderer.invoke('installer:build',projectId),
+    build:(projectId:string):Promise<{installerPath:string;checksumPath:string;outputDirectory:string;signed:boolean;platform?:'windows'|'macos'|'linux'}>=>ipcRenderer.invoke('installer:build',projectId),
     reveal:(path:string):Promise<boolean>=>ipcRenderer.invoke('installer:reveal',path),
     onProgress:(listener:(message:string)=>void):(()=>void)=>{const handler=(_:unknown,message:string)=>listener(message);ipcRenderer.on('installer:event',handler);return()=>ipcRenderer.removeListener('installer:event',handler)}
   },

@@ -1,6 +1,6 @@
 # Foundry Desktop
 
-Foundry is a Windows-first conversational builder that turns a description into a working desktop application. It can create projects from templates, edit them with an OpenAI coding agent, compile and preview them locally, launch them as standalone desktop windows, and package them as NSIS Windows installers.
+Foundry is a conversational builder that turns a description into a working desktop application. It can create projects from templates, edit them with a selected AI provider, compile and preview them locally, launch them as standalone desktop windows, and package native Windows, macOS, or Linux installers on the matching host operating system.
 
 Generated apps can use Foundry's narrow desktop bridge for user-approved text-file open and save dialogs. The bridge never exposes arbitrary filesystem paths or Node.js to generated renderer code.
 
@@ -19,7 +19,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 7. Accept the result into a checkpoint or undo the complete AI build.
 8. Review source files, activity, and recoverable Git checkpoints.
 9. Configure the app name, version, publisher, icon, window, and installer behavior.
-10. Build a Windows installer.
+10. Build a native installer for the current desktop operating system.
 
 ## Safety model
 
@@ -41,8 +41,9 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 
 - No advertising, analytics, telemetry, or behavioral tracking
 - Projects, checkpoints, configuration, and activity history are stored locally
-- OpenAI API keys are encrypted with the operating system's credential protection
-- AI requests send the prompt and relevant project-file content directly to OpenAI
+- Provider keys and generated-app AI tokens are encrypted with the operating system's credential protection
+- BYOK requests go directly to the selected provider; Foundry Cloud requests pass through the hosted gateway for authentication, credit accounting, and provider forwarding
+- Stripe processes optional Foundry Cloud credit purchases; Foundry does not receive full card details
 - Generated applications are never automatically uploaded or published
 
 Read the complete [Foundry Desktop Privacy Notice](PRIVACY.md).
