@@ -11,6 +11,7 @@
     "build": "tsc --noEmit && electron-vite build",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-transform-types --test tests/*.test.ts",
+    "release:audit": "node scripts/generate-release-audit.mjs",
     "gateway:dev": "node --experimental-transform-types src/main/gateway/server.ts",
     "dist:win": "npm run build && electron-builder --win nsis --x64",
     "release:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1"

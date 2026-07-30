@@ -4,7 +4,9 @@ Foundry is a Windows-first conversational builder that turns a description into 
 
 Generated apps can use Foundry's narrow desktop bridge for user-approved text-file open and save dialogs. The bridge never exposes arbitrary filesystem paths or Node.js to generated renderer code.
 
-Foundry is open-source software under the [MIT License](LICENSE). See the [Privacy Notice](PRIVACY.md) for its local data and OpenAI API practices. Windows releases follow the documented [Code signing policy](CODE_SIGNING.md), and security issues should be reported using the process in [SECURITY.md](SECURITY.md).
+Foundry is open-source software under the [MIT License](LICENSE). See the [Privacy Notice](PRIVACY.md) for its local data and AI-provider practices. Windows releases follow the documented [Code signing policy](CODE_SIGNING.md), and security issues should be reported using the process in [SECURITY.md](SECURITY.md).
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
 ## Product workflow
 

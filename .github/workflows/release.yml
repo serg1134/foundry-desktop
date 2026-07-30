@@ -20,6 +20,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Require complete signing configuration
+        shell: powershell
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          SIGNPATH_EXPECTED_PUBLISHER: ${{ vars.SIGNPATH_EXPECTED_PUBLISHER }}
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/assert-signing-config.ps1 -ApiToken $env:SIGNPATH_API_TOKEN -OrganizationId $env:SIGNPATH_ORGANIZATION_ID -ProjectSlug $env:SIGNPATH_PROJECT_SLUG -SigningPolicySlug $env:SIGNPATH_SIGNING_POLICY_SLUG -ArtifactConfigurationSlug $env:SIGNPATH_ARTIFACT_CONFIGURATION_SLUG -ExpectedPublisher $env:SIGNPATH_EXPECTED_PUBLISHER
       - name: Verify tag matches package version
         id: package-version
         shell: powershell
@@ -55,9 +65,24 @@ jobs:
             version: "${{ steps.package-version.outputs.version }}"
       - name: Replace installer and finalize signed update artifacts
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-signed-artifact.ps1 -SignedArtifactDirectory signed-release -ReleaseDirectory release
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-signed-artifact.ps1 -SignedArtifactDirectory signed-release -ReleaseDirectory release -ExpectedPublisher '${{ vars.SIGNPATH_EXPECTED_PUBLISHER }}'
+      - name: Upload release trust evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: foundry-release-trust-${{ steps.package-version.outputs.version }}
+          path: |
+            release/dependency-audit.json
+            release/Foundry-Setup-*.exe.sha256
+            release/latest.yml
+          if-no-files-found: error
       - name: Publish GitHub Release
         shell: powershell
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create $env:GITHUB_REF_NAME release/Foundry-Setup-*.exe release/Foundry-Setup-*.exe.blockmap release/Foundry-Setup-*.exe.sha256 release/latest.yml --title "Foundry $env:GITHUB_REF_NAME" --generate-notes
+        run: |
+          $signingNotice=@'
+          ## Code signing policy
+
+          Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). See Foundry's [code signing policy](https://github.com/serg1134/foundry-desktop/blob/main/CODE_SIGNING.md) and [privacy notice](https://github.com/serg1134/foundry-desktop/blob/main/PRIVACY.md).
+          '@
+          gh release create $env:GITHUB_REF_NAME release/Foundry-Setup-*.exe release/Foundry-Setup-*.exe.blockmap release/Foundry-Setup-*.exe.sha256 release/latest.yml release/dependency-audit.json --title "Foundry $env:GITHUB_REF_NAME" --generate-notes --notes $signingNotice

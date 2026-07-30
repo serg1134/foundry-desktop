@@ -1,6 +1,7 @@
 param(
   [Parameter(Mandatory=$true)][string]$SignedArtifactDirectory,
-  [Parameter(Mandatory=$true)][string]$ReleaseDirectory
+  [Parameter(Mandatory=$true)][string]$ReleaseDirectory,
+  [Parameter(Mandatory=$true)][string]$ExpectedPublisher
 )
 $ErrorActionPreference='Stop'
 $version=(Get-Content (Join-Path $PSScriptRoot '..\package.json') -Raw | ConvertFrom-Json).version
@@ -12,5 +13,5 @@ $destination=Join-Path $releaseRoot $expectedName
 Copy-Item -LiteralPath $matches[0].FullName -Destination $destination -Force
 node (Join-Path $PSScriptRoot 'finalize-signed-release.mjs') $destination $releaseRoot
 if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
-powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'verify-release.ps1') -ReleaseDirectory $releaseRoot -RequireSigned
+powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'verify-release.ps1') -ReleaseDirectory $releaseRoot -RequireSigned -ExpectedPublisher $ExpectedPublisher
 exit $LASTEXITCODE
