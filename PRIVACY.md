@@ -1,42 +1,44 @@
 # Foundry Desktop Privacy Notice
 
-Last updated: July 26, 2026
+Last updated: July 29, 2026
 
-Foundry Desktop is an open-source, local-first desktop application builder. This notice explains what the application stores and when information leaves your computer.
+Foundry Desktop is an open-source, local-first desktop application builder. This notice explains what Foundry stores, which services receive information, and the choices available to you.
 
-## Information stored locally
+## Information stored on your device
 
-Foundry stores the following information on your device:
+Foundry stores project source files, build output, checkpoints, activity history, project locations, application settings, and crash reports locally. Provider API keys and generated-app managed AI tokens are encrypted with Electron `safeStorage` and your operating system's credential protection.
 
-- The list and locations of projects you open or create
-- Project source files, build output, configuration, checkpoints, and activity history
-- Application settings
-- Your OpenAI API key, encrypted using Electron `safeStorage` and the operating system's credential protection
+Foundry does not include advertising, behavioral tracking, or third-party analytics.
 
-Foundry does not include advertising, analytics, telemetry, or behavioral tracking.
+## AI building modes
 
-## Information sent to OpenAI
+Foundry supports two ways to access AI models:
 
-Foundry connects directly to the OpenAI API using the API key you provide. When you verify a key, Foundry sends it to OpenAI for authentication. When you run the AI builder, Foundry sends your prompt, the agent instructions, and project-file content needed to perform the requested work to OpenAI.
+- **Your own provider key (BYOK):** prompts, agent instructions, attachments, and relevant project-file content are sent directly to the provider you select, which may be OpenAI, Anthropic, Google, or xAI. The provider's terms and privacy practices apply.
+- **Foundry Cloud:** account authentication data, prompts, attachments, relevant project-file content, model request data, and usage metadata are sent to the Foundry gateway. The gateway authenticates the request, tracks credits and limits, and forwards model requests to the selected AI provider.
 
-Those requests are governed by the terms and privacy practices that apply to your OpenAI API account. Do not include secrets, personal information, or confidential source code unless you are authorized to send that information to OpenAI.
+Do not submit secrets, personal information, or confidential source code unless you are authorized to send it to the selected service. Removing a locally saved key deletes Foundry's encrypted copy, but does not delete information already processed by a provider.
 
-Removing the saved API key from Foundry settings deletes Foundry's encrypted local copy. It does not delete information previously processed by OpenAI; use the controls available through your OpenAI account for those requests.
+## Accounts and billing
+
+When Foundry Cloud is enabled, the gateway stores account email, password hashes, session records, credit balances, usage ledger entries, purchase records, rate-limit state, and generated-app credential metadata. Session and app tokens are stored as one-way hashes by the gateway.
+
+Stripe processes checkout and payment details. Foundry receives identifiers and purchase status needed to grant credits, but does not receive full payment-card numbers. Stripe's privacy terms apply.
 
 ## Updates and downloads
 
-Installed builds may connect to GitHub Releases to check for and download Foundry updates. GitHub may receive standard connection information such as your IP address and request metadata under its own privacy policy.
+Installed builds may connect to GitHub Releases to check for and download updates. GitHub may receive standard connection information such as IP address and request metadata.
 
 ## Generated applications
 
-Applications generated with Foundry are stored locally. Foundry does not automatically publish, upload, or distribute them. You are responsible for the privacy behavior and disclosures of applications you create and distribute.
+Generated applications are stored locally unless you choose to publish or distribute them. An app may access native capabilities or HTTPS services only when its project permissions allow them. Apps configured for managed AI send their model requests through the Foundry gateway. You are responsible for the behavior, security, and privacy disclosures of applications you distribute.
 
-## Data sharing and retention
+## Retention and deletion
 
-The Foundry project does not operate a backend service and does not receive or sell your prompts, API key, project files, or usage data. Local information remains until you remove it using Foundry, delete the related project files, or uninstall the application and remove its application-data directory.
+Local data remains until you remove it in Foundry, delete the project, or uninstall Foundry and remove its application-data directory. Cloud account, billing, and usage records remain as needed to operate the service, prevent abuse, resolve disputes, and meet legal or accounting obligations. Contact the project maintainers to request account deletion; some transaction records may need to be retained where required by law.
 
 ## Security and questions
 
-Please report security issues using [SECURITY.md](SECURITY.md). For privacy questions, open a public repository issue only if the question contains no sensitive information.
+Report security issues using [SECURITY.md](SECURITY.md). For privacy questions, use the repository contact process without posting sensitive information publicly.
 
 This notice may change as Foundry adds services or integrations. Material changes will be documented in the repository and release notes.

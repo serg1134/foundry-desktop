@@ -1,0 +1,56 @@
+/* Foundry's native-studio visual layer: inspired by SwiftUI materials and rhythm. */
+:root{
+  --bg:#090a0d;--panel:rgba(22,23,28,.78);--panel-2:rgba(31,32,38,.74);--panel-3:rgba(255,255,255,.075);
+  --line:rgba(255,255,255,.085);--border-soft:rgba(255,255,255,.085);--border-strong:rgba(255,255,255,.15);
+  --text:#f5f5f7;--muted:#98989f;--accent:#ff7548;--accent-2:#ff9a78;--green:#59d69d;
+  --radius-sm:10px;--radius-md:13px;--radius-lg:17px;--radius-xl:23px;
+  --surface-raised:rgba(38,39,46,.82);--surface-hover:rgba(255,255,255,.09);
+  --shadow-sm:0 4px 14px rgba(0,0,0,.18);--shadow-md:0 20px 60px rgba(0,0,0,.38);
+  --focus-ring:0 0 0 3px rgba(255,117,72,.2);--ease:cubic-bezier(.22,1,.36,1)
+}
+body{font-family:"SF Pro Display","SF Pro Text","Segoe UI Variable Text","Segoe UI",sans-serif;letter-spacing:-.006em;background:radial-gradient(circle at 50% -20%,#242530 0,#0c0d11 38%,#07080a 100%)}
+button,input,textarea,select{font-family:inherit}button{letter-spacing:-.006em}
+
+/* Window chrome and navigation */
+.topbar{height:64px;grid-template-columns:minmax(210px,300px) minmax(160px,1fr) auto;padding:0 204px 0 18px;border-color:rgba(255,255,255,.07);background:rgba(15,16,20,.72);box-shadow:inset 0 -1px rgba(0,0,0,.25);backdrop-filter:blur(28px) saturate(150%)}
+.brand{gap:11px;font-size:16px;font-weight:650;letter-spacing:-.02em}.brand-mark{width:34px;height:34px;border-radius:11px;background:linear-gradient(145deg,#ff936f,#ff6737);box-shadow:inset 0 1px rgba(255,255,255,.35),0 8px 22px rgba(255,105,59,.2)}
+.project-switcher{height:40px;padding:0 13px;border-color:rgba(255,255,255,.09);border-radius:12px;background:rgba(255,255,255,.055);box-shadow:inset 0 1px rgba(255,255,255,.045),0 1px 1px rgba(0,0,0,.18);backdrop-filter:blur(18px)}
+.top-actions{gap:7px}.top-actions button{height:38px;border-radius:11px}.top-actions .primary-button{background:#f2f2f4;color:#111216;border-color:rgba(255,255,255,.75);box-shadow:0 5px 16px rgba(0,0,0,.2)}
+.top-actions .secondary-button,.top-actions .icon-button{background:rgba(255,255,255,.055);border-color:rgba(255,255,255,.09)}
+
+.workspace{grid-template-columns:64px 380px minmax(0,1fr)!important;background:transparent}.rail{padding:12px 10px;border-color:rgba(255,255,255,.065);background:rgba(14,15,19,.7);backdrop-filter:blur(26px) saturate(140%)}
+.rail-button{position:relative;height:42px;border-radius:12px;font-size:16px}.rail-button:hover{background:rgba(255,255,255,.065)}.rail-button.active{background:linear-gradient(180deg,rgba(255,255,255,.105),rgba(255,255,255,.065));box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 5px 18px rgba(0,0,0,.16)}.rail-button.active:before{content:"";position:absolute;left:-3px;top:50%;width:3px;height:17px;border-radius:999px;background:var(--accent);box-shadow:0 0 12px rgba(255,117,72,.42);transform:translateY(-50%)}
+
+/* Builder conversation */
+.chat-panel{border-color:rgba(255,255,255,.07);background:linear-gradient(180deg,rgba(22,23,28,.78),rgba(14,15,19,.84))!important;backdrop-filter:blur(24px) saturate(135%)}
+.panel-heading{height:84px!important;padding:18px 22px!important;border-color:rgba(255,255,255,.065);background:rgba(255,255,255,.015)}.panel-heading h1{font-size:22px!important;font-weight:680;letter-spacing:-.035em}.eyebrow,.section-label{color:#85858d;font-size:9px;letter-spacing:.15em}
+.conversation{padding:22px 20px 10px!important}.message.user-message{margin-left:34px!important;padding:14px 16px;border:0!important;border-radius:18px 18px 6px 18px!important;background:linear-gradient(145deg,rgba(58,59,68,.78),rgba(39,40,47,.8))!important;box-shadow:inset 0 1px rgba(255,255,255,.07),0 8px 24px rgba(0,0,0,.16)}
+.welcome-message{padding:14px;border-color:rgba(255,255,255,.075);border-radius:16px;background:rgba(255,255,255,.035)}.agent-orb{border-radius:11px;background:linear-gradient(145deg,rgba(255,117,72,.24),rgba(255,117,72,.09));box-shadow:inset 0 1px rgba(255,255,255,.08)}
+.agent-message p{color:#c7c7cc;line-height:1.6}.change-card{padding:12px 13px;border-radius:13px;background:rgba(255,255,255,.045);box-shadow:inset 0 1px rgba(255,255,255,.035)}
+.prompt-box{margin:12px 14px 14px!important;border:1px solid rgba(255,255,255,.12)!important;border-radius:19px!important;background:rgba(34,35,42,.82)!important;box-shadow:0 20px 55px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.06)!important;backdrop-filter:blur(24px) saturate(145%)}
+.prompt-box:focus-within{border-color:rgba(255,255,255,.21)!important;box-shadow:0 24px 64px rgba(0,0,0,.4),var(--focus-ring),inset 0 1px rgba(255,255,255,.08)!important}.prompt-box textarea{min-height:82px;padding:15px 16px 5px!important;font-size:13px;line-height:1.5}.prompt-footer{padding:8px 9px 9px!important}.prompt-tools button{border-radius:10px;background:rgba(255,255,255,.07)}.send-button{width:34px!important;height:34px!important;border-radius:11px!important;background:linear-gradient(145deg,#ff956f,#ff6738)!important;box-shadow:0 8px 22px rgba(255,105,59,.26)}
+
+/* Main studio canvas */
+.stage-panel{background:rgba(9,10,13,.62);backdrop-filter:blur(12px)}.stage-tabs{height:58px;padding:0 16px;align-items:center;border-color:rgba(255,255,255,.07);background:rgba(18,19,24,.7);backdrop-filter:blur(24px) saturate(140%)}
+.stage-tab{height:36px;padding:0 14px;border-radius:11px;font-size:13px}.stage-tab:hover{background:rgba(255,255,255,.055)}.stage-tab.active{background:rgba(255,255,255,.085);box-shadow:inset 0 1px rgba(255,255,255,.045);color:#fff}.stage-tab.active:after{height:2px;left:14px;right:14px;bottom:-11px;border-radius:999px;background:var(--accent)}
+.preview-control{width:34px;height:34px;border-radius:10px}.stage-content{padding:30px;background:radial-gradient(circle at 50% 0,rgba(69,71,86,.25),rgba(15,16,20,.55) 44%,rgba(8,9,12,.82) 100%)}
+.desktop-frame{max-width:1180px;border-color:rgba(255,255,255,.15);border-radius:18px;background:#111217;box-shadow:0 42px 120px rgba(0,0,0,.58),inset 0 1px rgba(255,255,255,.06)}.window-bar{height:44px;border-color:rgba(255,255,255,.08);background:linear-gradient(180deg,#24252c,#1b1c22);font-size:11px}.notes-app{height:calc(100% - 44px)}
+.notes-sidebar{background:rgba(26,27,33,.95);border-color:rgba(255,255,255,.08)}.note-list{background:#18191f;border-color:rgba(255,255,255,.08)}.new-note{height:38px;border-radius:11px;background:linear-gradient(145deg,#ff906b,#ff693b);box-shadow:0 8px 22px rgba(255,105,59,.17)}.folder{height:35px;border-radius:9px}.folder.active{background:rgba(255,255,255,.09);box-shadow:inset 0 1px rgba(255,255,255,.035)}.search{height:36px;border-color:rgba(255,255,255,.09);border-radius:10px;background:rgba(0,0,0,.22)}.note-card{border-radius:12px}.note-card.selected{background:rgba(255,255,255,.085);box-shadow:inset 2px 0 var(--accent),inset 0 1px rgba(255,255,255,.035)}.editor h2{font-size:29px;letter-spacing:-.035em}
+
+/* Shared SwiftUI-like controls and surfaces */
+.icon-button,.secondary-button,.primary-button,.save-button{border-radius:11px}.secondary-button,.icon-button{background:rgba(255,255,255,.055);border-color:rgba(255,255,255,.1)}
+.secondary-button:hover,.icon-button:hover{background:rgba(255,255,255,.095);border-color:rgba(255,255,255,.16);transform:translateY(-1px)}
+.primary-button{background:#f3f3f5;color:#121216;border-color:rgba(255,255,255,.7);font-weight:650;box-shadow:0 5px 16px rgba(0,0,0,.18)}
+.project-modal{border-color:rgba(255,255,255,.14);border-radius:24px;background:linear-gradient(180deg,rgba(39,40,48,.95),rgba(22,23,28,.96));box-shadow:0 40px 120px rgba(0,0,0,.65),inset 0 1px rgba(255,255,255,.08);backdrop-filter:blur(32px) saturate(150%)}
+.modal-backdrop{background:rgba(3,4,7,.56);backdrop-filter:blur(18px) saturate(120%)}.project-modal input,.project-modal textarea,.project-modal select{height:44px;border-color:rgba(255,255,255,.1);border-radius:11px;background:rgba(0,0,0,.22)}
+.activity-log,.file-diff,.version-card,.benchmark-card,.verification-card,.build-progress{border-color:rgba(255,255,255,.085);border-radius:15px;background:rgba(255,255,255,.035);box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.preview-tools,.element-inspector{border-color:rgba(255,255,255,.14);background:rgba(30,31,37,.82);backdrop-filter:blur(28px) saturate(150%);box-shadow:0 18px 55px rgba(0,0,0,.42)}
+.statusbar{height:30px;border-color:rgba(255,255,255,.065);background:rgba(16,17,21,.74);backdrop-filter:blur(22px)}
+
+/* True light material, tuned independently. */
+.light-shell{--bg:#f2f2f4;--panel:rgba(249,249,251,.84);--panel-2:rgba(255,255,255,.82);--panel-3:rgba(20,20,25,.055);--line:rgba(20,20,25,.1);--text:#1c1c1e;--muted:#77777f;--surface-hover:rgba(20,20,25,.07);--border-soft:rgba(20,20,25,.1);--border-strong:rgba(20,20,25,.17);color-scheme:light}
+.light-shell{background:radial-gradient(circle at 50% -10%,#fff,#ececf0 55%,#e6e6ea)}.light-shell .topbar,.light-shell .rail,.light-shell .stage-tabs{background:rgba(247,247,249,.76);border-color:rgba(20,20,25,.09)}.light-shell .chat-panel{background:linear-gradient(180deg,rgba(250,250,252,.87),rgba(239,239,243,.9))!important}.light-shell .stage-panel{background:rgba(235,235,239,.68)}.light-shell .stage-content{background:radial-gradient(circle at 50% 0,#fff,#e7e7eb 76%)}
+.light-shell .project-switcher,.light-shell .top-actions .secondary-button,.light-shell .top-actions .icon-button{background:rgba(255,255,255,.74);border-color:rgba(20,20,25,.1);color:#242429}.light-shell .stage-tab.active{background:rgba(20,20,25,.075);color:#1c1c1e}.light-shell .message.user-message{background:linear-gradient(145deg,#fff,#f1f1f4)!important;box-shadow:inset 0 1px #fff,0 8px 25px rgba(46,46,55,.09)}.light-shell .agent-message p{color:#4f4f56}.light-shell .prompt-box{background:rgba(255,255,255,.84)!important;border-color:rgba(20,20,25,.12)!important;box-shadow:0 18px 50px rgba(46,46,55,.14),inset 0 1px #fff!important}.light-shell .project-modal{background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(244,244,247,.97));border-color:rgba(20,20,25,.12)}.light-shell .statusbar{background:rgba(246,246,248,.8)}
+
+@media(max-width:1180px){.workspace{grid-template-columns:58px 340px minmax(0,1fr)!important}.topbar{padding-right:190px}.top-actions>.secondary-button:nth-child(2),.top-actions>.secondary-button:nth-child(3){display:none}}
+@media(max-width:820px){.workspace{grid-template-columns:54px 320px minmax(0,1fr)!important}.topbar{padding-right:178px}.stage-content{padding:20px}}

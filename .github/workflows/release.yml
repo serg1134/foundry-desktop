@@ -20,6 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: npm run build
       - name: Require complete signing configuration
         shell: powershell
         env:

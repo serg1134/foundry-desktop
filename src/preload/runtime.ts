@@ -9,8 +9,11 @@ contextBridge.exposeInMainWorld('foundryDesktop',Object.freeze({
     get:(namespace:string,key:string):Promise<unknown|null>=>ipcRenderer.invoke('desktop-database:get',{namespace,key}),
     set:(namespace:string,key:string,value:unknown):Promise<boolean>=>ipcRenderer.invoke('desktop-database:set',{namespace,key,value}),
     delete:(namespace:string,key:string):Promise<boolean>=>ipcRenderer.invoke('desktop-database:delete',{namespace,key}),
-    list:(namespace:string):Promise<{key:string;value:unknown;updatedAt:string}[]>=>ipcRenderer.invoke('desktop-database:list',{namespace})
+    list:(namespace:string):Promise<{key:string;value:unknown;updatedAt:string}[]>=>ipcRenderer.invoke('desktop-database:list',{namespace}),
+    backup:():Promise<boolean>=>ipcRenderer.invoke('desktop-database:backup'),
+    restoreLatest:():Promise<boolean>=>ipcRenderer.invoke('desktop-database:restore-latest')
   }),
+  readClipboardText:():Promise<string>=>ipcRenderer.invoke('desktop:clipboard-read'),
   writeClipboardText:(text:string):Promise<boolean>=>ipcRenderer.invoke('desktop:clipboard-write',text),
   showNotification:(title:string,body=''):Promise<boolean>=>ipcRenderer.invoke('desktop:notification-show',{title,body}),
   tray:Object.freeze({
