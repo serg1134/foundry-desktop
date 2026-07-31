@@ -11,5 +11,9 @@ test('preview runtime verifies native menu and deep-link registration',async()=>
   assert.match(main,/desktop:deep-link-ready/);
   assert.match(main,/requireRuntimeCapability\(event,'deepLinks'\)/);
   assert.match(main,/runtimeDeepLinks\.has\(project\.id\)/);
+  assert.match(main,/runtimeDatabases\.has\(project\.id\)/);
+  assert.match(main,/runtimeNotifications\.has\(project\.id\)/);
+  assert.match(main,/runtimeTrays\.has\(project\.id\)/);
+  assert.match(main,/runtimeShortcuts\.get\(project\.id\)/);
   assert.match(preload,/desktop:deep-link-ready/);
 });
