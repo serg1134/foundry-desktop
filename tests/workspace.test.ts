@@ -25,7 +25,7 @@ test('workspace creates, reads, writes, lists, and audits a project',async()=>{
   const files=await service.listFiles(project);
   assert.ok(files.some(file=>file.path==='src/main.tsx'));
   assert.ok(files.some(file=>file.path==='src/foundry-desktop.d.ts'));
-  const desktopTypes=await service.readText(project,'src/foundry-desktop.d.ts');assert.match(desktopTypes,/ai:\{request/);assert.match(desktopTypes,/readClipboardText/);assert.match(desktopTypes,/writeClipboardText/);assert.match(desktopTypes,/showNotification/);assert.match(desktopTypes,/chooseFolder/);assert.match(desktopTypes,/database:/);assert.match(desktopTypes,/backup\(\)/);assert.match(desktopTypes,/restoreLatest\(\)/);assert.match(desktopTypes,/tray:/);assert.match(desktopTypes,/shortcuts:/);
+  const desktopTypes=await service.readText(project,'src/foundry-desktop.d.ts');assert.match(desktopTypes,/ai:\{request/);assert.match(desktopTypes,/readClipboardText/);assert.match(desktopTypes,/writeClipboardText/);assert.match(desktopTypes,/showNotification/);assert.match(desktopTypes,/chooseFolder/);assert.match(desktopTypes,/database:/);assert.match(desktopTypes,/backup\(\)/);assert.match(desktopTypes,/restoreLatest\(\)/);assert.match(desktopTypes,/tray:/);assert.match(desktopTypes,/shortcuts:/);assert.match(desktopTypes,/menus:/);assert.match(desktopTypes,/deepLinks:/);
   assert.ok(files.every(file=>!file.path.startsWith('.foundry/')));
   const original=await service.readText(project,'src/main.tsx');
   assert.match(original,/Test Desktop App/);

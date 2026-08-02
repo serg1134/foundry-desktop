@@ -24,5 +24,13 @@ contextBridge.exposeInMainWorld('foundryDesktop',Object.freeze({
     register:(accelerator:string,id:string):Promise<boolean>=>ipcRenderer.invoke('desktop:shortcut-register',{accelerator,id}),
     clear:():Promise<boolean>=>ipcRenderer.invoke('desktop:shortcuts-clear'),
     onAction:(listener:(id:string)=>void):(()=>void)=>{const handler=(_:unknown,id:string)=>listener(id);ipcRenderer.on('foundry-desktop:shortcut-action',handler);return()=>ipcRenderer.removeListener('foundry-desktop:shortcut-action',handler)}
+  }),
+  menus:Object.freeze({
+    configure:(items:{id:string;label:string;accelerator?:string}[]):Promise<boolean>=>ipcRenderer.invoke('desktop:menu-configure',{items}),
+    onAction:(listener:(id:string)=>void):(()=>void)=>{const handler=(_:unknown,id:string)=>listener(id);ipcRenderer.on('foundry-desktop:menu-action',handler);return()=>ipcRenderer.removeListener('foundry-desktop:menu-action',handler)}
+  }),
+  deepLinks:Object.freeze({
+    getInitial:():Promise<string|null>=>ipcRenderer.invoke('desktop:deep-link-initial'),
+    onOpen:(listener:(url:string)=>void):(()=>void)=>{void ipcRenderer.invoke('desktop:deep-link-ready');const handler=(_:unknown,url:string)=>listener(url);ipcRenderer.on('foundry-desktop:deep-link-open',handler);return()=>ipcRenderer.removeListener('foundry-desktop:deep-link-open',handler)}
   })
 }));

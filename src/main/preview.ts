@@ -1,13 +1,25 @@
-import { build } from 'esbuild';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ProjectRecord } from './workspace';
 
 export type PreviewResult={html:string;warnings:string[]};
 
+export function previewDependencyRoot(appPath:string,resourcesPath:string,packaged:boolean):string{return packaged?join(resourcesPath,'app.asar.unpacked'):appPath}
+
+export function configurePackagedEsbuild(resourcesPath:string,platform:NodeJS.Platform=process.platform,arch:string=process.arch):string|null{
+  const packageName=platform==='win32'?`win32-${arch}`:platform==='darwin'?`darwin-${arch}`:platform==='linux'?`linux-${arch}`:'';
+  if(!packageName)return null;
+  const executable=platform==='win32'?join(resourcesPath,'app.asar.unpacked','node_modules','@esbuild',packageName,'esbuild.exe'):join(resourcesPath,'app.asar.unpacked','node_modules','@esbuild',packageName,'bin','esbuild');
+  if(!existsSync(executable))return null;
+  process.env.ESBUILD_BINARY_PATH=executable;
+  return executable;
+}
+
 export class PreviewService{
   constructor(private readonly dependencyRoot:string,private readonly networkAllowed:((project:ProjectRecord)=>Promise<boolean>)|null=null){}
 
   async build(project:ProjectRecord,persistentStorage=false):Promise<PreviewResult>{
+    const {build}=await import('esbuild');
     const result=await build({
       absWorkingDir:project.root,
       entryPoints:['src/main.tsx'],

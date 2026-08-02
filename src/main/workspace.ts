@@ -1,5 +1,5 @@
 import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises';
-import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, extname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { projectTemplates, type TemplateId } from '../templates.ts';
 
@@ -17,7 +17,8 @@ const LEGACY_DESKTOP_TYPES_V3="export {};declare global{interface Window{foundry
 const LEGACY_DESKTOP_TYPES_V4="export {};declare global{interface Window{foundryDesktop?:{openTextFile():Promise<{name:string;content:string}|null>;saveTextFile(content:string,suggestedName?:string):Promise<boolean>;chooseFolder():Promise<{name:string;files:{path:string;size:number}[];truncated:boolean}|null>;database:{get(namespace:string,key:string):Promise<unknown|null>;set(namespace:string,key:string,value:unknown):Promise<boolean>;delete(namespace:string,key:string):Promise<boolean>;list(namespace:string):Promise<{key:string;value:unknown;updatedAt:string}[]>};writeClipboardText(text:string):Promise<boolean>;showNotification(title:string,body?:string):Promise<boolean>;tray:{configure(tooltip:string,items:{id:string;label:string}[]):Promise<boolean>;onAction(listener:(id:string)=>void):()=>void};shortcuts:{register(accelerator:string,id:string):Promise<boolean>;clear():Promise<boolean>;onAction(listener:(id:string)=>void):()=>void}}}}\n";
 const LEGACY_DESKTOP_TYPES_V5=LEGACY_DESKTOP_TYPES_V4.replace("foundryDesktop?:{",`foundryDesktop?:{ai:{request(payload:Record<string,unknown>):Promise<Record<string,unknown>>};`);
 const LEGACY_DESKTOP_TYPES_V6=LEGACY_DESKTOP_TYPES_V5.replace("list(namespace:string):Promise<{key:string;value:unknown;updatedAt:string}[]>","list(namespace:string):Promise<{key:string;value:unknown;updatedAt:string}[]>;backup():Promise<boolean>;restoreLatest():Promise<boolean>");
-const DESKTOP_TYPES=LEGACY_DESKTOP_TYPES_V6.replace("writeClipboardText(text:string)","readClipboardText():Promise<string>;writeClipboardText(text:string)");
+const LEGACY_DESKTOP_TYPES_V7=LEGACY_DESKTOP_TYPES_V6.replace("writeClipboardText(text:string)","readClipboardText():Promise<string>;writeClipboardText(text:string)");
+const DESKTOP_TYPES=LEGACY_DESKTOP_TYPES_V7.replace("shortcuts:{register(accelerator:string,id:string):Promise<boolean>;clear():Promise<boolean>;onAction(listener:(id:string)=>void):()=>void}","shortcuts:{register(accelerator:string,id:string):Promise<boolean>;clear():Promise<boolean>;onAction(listener:(id:string)=>void):()=>void};menus:{configure(items:{id:string;label:string;accelerator?:string}[]):Promise<boolean>;onAction(listener:(id:string)=>void):()=>void};deepLinks:{getInitial():Promise<string|null>;onOpen(listener:(url:string)=>void):()=>void}");
 function isEditableTextFile(path:string):boolean{return TEXT_FILENAMES.has(basename(path).toLowerCase())||TEXT_EXTENSIONS.has(extname(path).toLowerCase())}
 
 function safeName(name:string):string{
@@ -32,8 +33,10 @@ function contained(root:string,target:string):boolean{
 }
 
 export function resolveProjectPath(root:string,projectPath:string):string{
-  if(!projectPath||isAbsolute(projectPath)||projectPath.includes('\0'))throw new Error('A relative project path is required.');
-  const target=resolve(root,projectPath);
+  if(!projectPath||isAbsolute(projectPath)||win32.isAbsolute(projectPath)||projectPath.includes('\0'))throw new Error('A relative project path is required.');
+  // Treat both slash styles as separators so a project cannot smuggle Windows
+  // traversal syntax through a macOS or Linux build host.
+  const target=resolve(root,projectPath.replace(/\\/g,'/'));
   if(!contained(root,target))throw new Error('Path escapes the active project.');
   return target;
 }
@@ -100,12 +103,12 @@ export class WorkspaceService{
     const root=await realpath(rootInput),info=await stat(root);if(!info.isDirectory())throw new Error('Project root must be a directory.');
     const now=new Date().toISOString(),projects=await this.readRegistry(),existing=projects.find(item=>item.root===root),project=existing?{...existing,updatedAt:now}:{id:randomUUID(),name:basename(root),root,createdAt:now,updatedAt:now};await this.writeRegistry([project,...projects.filter(item=>item.root!==root)]);return project;
   }
-  private async ensureBridgeTypes(project:ProjectRecord):Promise<void>{const target=join(project.root,'src','foundry-desktop.d.ts');try{const current=await readFile(target,'utf8');if([LEGACY_DESKTOP_TYPES,LEGACY_DESKTOP_TYPES_V2,LEGACY_DESKTOP_TYPES_V3,LEGACY_DESKTOP_TYPES_V4,LEGACY_DESKTOP_TYPES_V5,LEGACY_DESKTOP_TYPES_V6].includes(current))await writeFile(target,DESKTOP_TYPES,'utf8')}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error}}
+  private async ensureBridgeTypes(project:ProjectRecord):Promise<void>{const target=join(project.root,'src','foundry-desktop.d.ts');try{const current=await readFile(target,'utf8');if([LEGACY_DESKTOP_TYPES,LEGACY_DESKTOP_TYPES_V2,LEGACY_DESKTOP_TYPES_V3,LEGACY_DESKTOP_TYPES_V4,LEGACY_DESKTOP_TYPES_V5,LEGACY_DESKTOP_TYPES_V6,LEGACY_DESKTOP_TYPES_V7].includes(current))await writeFile(target,DESKTOP_TYPES,'utf8')}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error}}
   async listFiles(project:ProjectRecord):Promise<ProjectFile[]>{
     const files:ProjectFile[]=[];const walk=async(dir:string):Promise<void>=>{for(const entry of await readdir(dir,{withFileTypes:true})){if(entry.isSymbolicLink())continue;if(entry.isDirectory()&&IGNORED_DIRS.has(entry.name))continue;const absolute=join(dir,entry.name);if(entry.isDirectory())await walk(absolute);else if(entry.isFile()){const info=await stat(absolute);files.push({path:relative(project.root,absolute).split(sep).join('/'),size:info.size})}}};await walk(project.root);return files.sort((a,b)=>a.path.localeCompare(b.path));
   }
   async readText(project:ProjectRecord,path:string):Promise<string>{const target=resolveProjectPath(project.root,path);await assertNoSymlink(project.root,target);const info=await stat(target);if(!info.isFile()||info.size>MAX_TEXT_BYTES)throw new Error('File is not a supported text file.');if(!isEditableTextFile(target))throw new Error('File type is not editable.');const content=await readFile(target,'utf8');if(content.includes('\0'))throw new Error('Binary files are not supported.');return content}
-  async writeText(project:ProjectRecord,path:string,content:string):Promise<void>{if(Buffer.byteLength(content,'utf8')>MAX_TEXT_BYTES)throw new Error('File exceeds the 1 MB text limit.');const target=resolveProjectPath(project.root,path);if(!isEditableTextFile(target))throw new Error('File type is not editable.');await assertNoSymlink(project.root,target);await mkdir(resolve(target,'..'),{recursive:true});await writeFile(target,content,'utf8');await this.log(project,{id:randomUUID(),at:new Date().toISOString(),type:'file.written',path})}
+  async writeText(project:ProjectRecord,path:string,content:string):Promise<void>{if(Buffer.byteLength(content,'utf8')>MAX_TEXT_BYTES)throw new Error('File exceeds the 1 MB text limit.');if(/^(?:src\/.*\.(?:[cm]?[jt]sx?)|index\.html)$/i.test(path)&&/(?:from\s*|import\s*\(|require\s*\()\s*['"]node:/i.test(content))throw new Error('Renderer files cannot import Node.js built-ins. Use the typed window.foundryDesktop bridge instead; do not add CommonJS shims.');const target=resolveProjectPath(project.root,path);if(!isEditableTextFile(target))throw new Error('File type is not editable.');await assertNoSymlink(project.root,target);await mkdir(resolve(target,'..'),{recursive:true});await writeFile(target,content,'utf8');await this.log(project,{id:randomUUID(),at:new Date().toISOString(),type:'file.written',path})}
   async activity(project:ProjectRecord):Promise<ActivityEntry[]>{try{return(await readFile(join(project.root,'.foundry','activity.jsonl'),'utf8')).trim().split('\n').filter(Boolean).map(line=>JSON.parse(line) as ActivityEntry).reverse()}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return[];throw error}}
   async record(project:ProjectRecord,type:Extract<ActivityEntry['type'],'runtime.error'|'agent.failure'|'installer.failure'|'capability.notification'>,detail:string):Promise<void>{await this.log(project,{id:randomUUID(),at:new Date().toISOString(),type,detail:detail.slice(0,2000)})}
   private async log(project:ProjectRecord,entry:ActivityEntry):Promise<void>{const file=join(project.root,'.foundry','activity.jsonl');let previous='';try{previous=await readFile(file,'utf8')}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error}await writeFile(file,previous+JSON.stringify(entry)+'\n','utf8')}
