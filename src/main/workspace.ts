@@ -1,5 +1,5 @@
 import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises';
-import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, extname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { projectTemplates, type TemplateId } from '../templates.ts';
 
@@ -33,8 +33,10 @@ function contained(root:string,target:string):boolean{
 }
 
 export function resolveProjectPath(root:string,projectPath:string):string{
-  if(!projectPath||isAbsolute(projectPath)||projectPath.includes('\0'))throw new Error('A relative project path is required.');
-  const target=resolve(root,projectPath);
+  if(!projectPath||isAbsolute(projectPath)||win32.isAbsolute(projectPath)||projectPath.includes('\0'))throw new Error('A relative project path is required.');
+  // Treat both slash styles as separators so a project cannot smuggle Windows
+  // traversal syntax through a macOS or Linux build host.
+  const target=resolve(root,projectPath.replace(/\\/g,'/'));
   if(!contained(root,target))throw new Error('Path escapes the active project.');
   return target;
 }

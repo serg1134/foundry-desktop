@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { addPermissionDisclosure, electronBuilderPackagePath, hardenPackagedDatabase, hardenPackagedRuntime, packageTargetFor } from '../src/main/installer.ts';
 
 test('generated desktop runtime applies configured identity and window behavior',async()=>{
@@ -58,8 +59,9 @@ test('generated runtime enforces sender identity and network permission at runti
 });
 
 test('packaged Foundry loads electron-builder from the unpacked dependency tree',()=>{
-  assert.equal(electronBuilderPackagePath('C:\\app\\resources\\app.asar','C:\\app\\resources',true),'C:\\app\\resources\\app.asar.unpacked\\node_modules\\electron-builder');
-  assert.equal(electronBuilderPackagePath('C:\\repo','C:\\repo',false),'C:\\repo\\node_modules\\electron-builder');
+  const resourcesPath=join('app','resources'),appPath=join(resourcesPath,'app.asar'),repoPath=join('repo');
+  assert.equal(electronBuilderPackagePath(appPath,resourcesPath,true),join(resourcesPath,'app.asar.unpacked','node_modules','electron-builder'));
+  assert.equal(electronBuilderPackagePath(repoPath,repoPath,false),join(repoPath,'node_modules','electron-builder'));
 });
 
 test('packaged database hardening emits a compilable migration and recovery runtime',()=>{
