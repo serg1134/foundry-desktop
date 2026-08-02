@@ -1,7 +1,9 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { closeSync, existsSync, openSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
-import { Arch, build, Platform } from 'electron-builder';
+import { spawn } from 'node:child_process';
+import { delimiter, join } from 'node:path';
+import { getCACertificates, setDefaultCACertificates } from 'node:tls';
 import type { ProjectRecord } from './workspace';
 import type { PreviewService } from './preview';
 import type { ProjectConfigService } from './project-config';
@@ -10,17 +12,28 @@ export type PackagePlatform='windows'|'macos'|'linux';
 export type InstallerResult={installerPath:string;checksumPath:string;outputDirectory:string;signed:boolean;platform?:PackagePlatform};
 export type InstallerBuildOptions={qualification?:boolean};
 
-export function packageTargetFor(host:NodeJS.Platform=process.platform):{name:PackagePlatform;platform:Platform;target:string;extension:RegExp;artifactName:string}{
-  if(host==='win32')return{name:'windows',platform:Platform.WINDOWS,target:'nsis',extension:/\.exe$/i,artifactName:'${productName}-Setup-${version}.${ext}'};
-  if(host==='darwin')return{name:'macos',platform:Platform.MAC,target:'dmg',extension:/\.dmg$/i,artifactName:'${productName}-${version}-${arch}.${ext}'};
-  if(host==='linux')return{name:'linux',platform:Platform.LINUX,target:'AppImage',extension:/\.AppImage$/i,artifactName:'${productName}-${version}-${arch}.${ext}'};
+type BuilderPlatformKey='WINDOWS'|'MAC'|'LINUX';
+
+export function packageTargetFor(host:NodeJS.Platform=process.platform):{name:PackagePlatform;platformKey:BuilderPlatformKey;target:string;extension:RegExp;artifactName:string}{
+  if(host==='win32')return{name:'windows',platformKey:'WINDOWS',target:'nsis',extension:/\.exe$/i,artifactName:'${productName}-Setup-${version}.${ext}'};
+  if(host==='darwin')return{name:'macos',platformKey:'MAC',target:'dmg',extension:/\.dmg$/i,artifactName:'${productName}-${version}-${arch}.${ext}'};
+  if(host==='linux')return{name:'linux',platformKey:'LINUX',target:'AppImage',extension:/\.AppImage$/i,artifactName:'${productName}-${version}-${arch}.${ext}'};
   throw new Error(`Packaging is not supported on ${host}.`);
 }
 
+export function electronBuilderPackagePath(appPath:string,resourcesPath:string,packaged:boolean):string{
+  return packaged?join(resourcesPath,'app.asar.unpacked','node_modules','electron-builder'):join(appPath,'node_modules','electron-builder');
+}
+
+function electronBuilderCliPath():string{
+  const packaged=existsSync(join(process.resourcesPath,'app.asar')),appPath=packaged?join(process.resourcesPath,'app.asar'):process.cwd();
+  return join(electronBuilderPackagePath(appPath,process.resourcesPath,packaged),'out','cli','cli.js');
+}
+
 export function packagedNativeRuntime(source:string):string{
-  const clipboardSetup=`ipcMain.handle('foundry-desktop:clipboard-read',()=>{requireCapability('clipboardRead');return clipboard.readText().slice(0,100000)});`;
-  const setup=`let mainWindow,tray;const registeredShortcuts=new Set(),validId=value=>/^[A-Za-z0-9._:-]{1,80}$/.test(value);ipcMain.handle('foundry-desktop:tray-configure',(_event,value)=>{requireCapability('tray');const tooltip=String(value?.tooltip||'').trim(),items=Array.isArray(value?.items)?value.items:[];if(!tooltip||tooltip.length>100||items.length>20)throw new Error('Tray configuration is invalid.');const normalized=items.map(item=>{const id=String(item?.id||''),label=String(item?.label||'').trim();if(!validId(id)||!label||label.length>80)throw new Error('Tray item identifiers or labels are invalid.');return{id,label}});if(!tray){tray=new Tray(nativeImage.createFromPath(process.execPath));tray.on('click',()=>{mainWindow?.show();mainWindow?.focus()})}tray.setToolTip(tooltip);tray.setContextMenu(Menu.buildFromTemplate(normalized.map(item=>({label:item.label,click:()=>mainWindow?.webContents.send('foundry-desktop:tray-action',item.id)}))));return true});ipcMain.handle('foundry-desktop:shortcut-register',(_event,value)=>{requireCapability('globalShortcuts');const accelerator=String(value?.accelerator||'').trim(),id=String(value?.id||'').trim();if(!/^[A-Za-z0-9+_-]{1,60}$/.test(accelerator)||!validId(id))throw new Error('Shortcut accelerator or identifier is invalid.');if(registeredShortcuts.size>=10&&!registeredShortcuts.has(accelerator))throw new Error('An app can register at most 10 global shortcuts.');if(registeredShortcuts.has(accelerator))globalShortcut.unregister(accelerator);if(!globalShortcut.register(accelerator,()=>mainWindow?.webContents.send('foundry-desktop:shortcut-action',id)))throw new Error('The shortcut is unavailable or already used by another application.');registeredShortcuts.add(accelerator);return true});ipcMain.handle('foundry-desktop:shortcuts-clear',()=>{requireCapability('globalShortcuts');for(const accelerator of registeredShortcuts)globalShortcut.unregister(accelerator);registeredShortcuts.clear();return true});`;
-  const menuAndLinkSetup=`let pendingDeepLink=process.argv.find(value=>value.startsWith(deepLinkScheme+'://'))||null;const sendDeepLink=url=>{if(!capabilities.deepLinks||typeof url!=='string'||!url.startsWith(deepLinkScheme+'://')||url.length>2048)return;pendingDeepLink=url;mainWindow?.webContents.send('foundry-desktop:deep-link-open',url);mainWindow?.show();mainWindow?.focus()};app.on('open-url',(event,url)=>{event.preventDefault();sendDeepLink(url)});app.on('second-instance',(_event,argv)=>sendDeepLink(argv.find(value=>value.startsWith(deepLinkScheme+'://'))));ipcMain.handle('foundry-desktop:deep-link-initial',()=>{requireCapability('deepLinks');const value=pendingDeepLink;pendingDeepLink=null;return value});ipcMain.handle('foundry-desktop:menu-configure',(_event,value)=>{requireCapability('menus');const items=Array.isArray(value?.items)?value.items:[];if(!items.length||items.length>30)throw new Error('Menu configuration is invalid.');const normalized=items.map(item=>{const id=String(item?.id||''),label=String(item?.label||'').trim(),accelerator=item?.accelerator==null?undefined:String(item.accelerator).trim();if(!validId(id)||!label||label.length>80||(accelerator&&!/^[A-Za-z0-9+_-]{1,60}$/.test(accelerator)))throw new Error('Menu item identifiers, labels, or shortcuts are invalid.');return{label,...(accelerator?{accelerator}:{}),click:()=>mainWindow?.webContents.send('foundry-desktop:menu-action',id)}});Menu.setApplicationMenu(Menu.buildFromTemplate([{label:app.name,submenu:normalized}]));return true});`;
+  const clipboardSetup=`ipcMain.handle('foundry-desktop:clipboard-read',event=>{requireCapability('clipboardRead',event);return clipboard.readText().slice(0,100000)});`;
+  const setup=`let tray;const registeredShortcuts=new Set(),validId=value=>/^[A-Za-z0-9._:-]{1,80}$/.test(value);ipcMain.handle('foundry-desktop:tray-configure',(event,value)=>{requireCapability('tray',event);const tooltip=String(value?.tooltip||'').trim(),items=Array.isArray(value?.items)?value.items:[];if(!tooltip||tooltip.length>100||items.length>20)throw new Error('Tray configuration is invalid.');const normalized=items.map(item=>{const id=String(item?.id||''),label=String(item?.label||'').trim();if(!validId(id)||!label||label.length>80)throw new Error('Tray item identifiers or labels are invalid.');return{id,label}});if(!tray){tray=new Tray(nativeImage.createFromPath(process.execPath));tray.on('click',()=>{mainWindow?.show();mainWindow?.focus()})}tray.setToolTip(tooltip);tray.setContextMenu(Menu.buildFromTemplate(normalized.map(item=>({label:item.label,click:()=>mainWindow?.webContents.send('foundry-desktop:tray-action',item.id)}))));return true});ipcMain.handle('foundry-desktop:shortcut-register',(event,value)=>{requireCapability('globalShortcuts',event);const accelerator=String(value?.accelerator||'').trim(),id=String(value?.id||'').trim();if(!/^[A-Za-z0-9+_-]{1,60}$/.test(accelerator)||!validId(id))throw new Error('Shortcut accelerator or identifier is invalid.');if(registeredShortcuts.size>=10&&!registeredShortcuts.has(accelerator))throw new Error('An app can register at most 10 global shortcuts.');if(registeredShortcuts.has(accelerator))globalShortcut.unregister(accelerator);if(!globalShortcut.register(accelerator,()=>mainWindow?.webContents.send('foundry-desktop:shortcut-action',id)))throw new Error('The shortcut is unavailable or already used by another application.');registeredShortcuts.add(accelerator);return true});ipcMain.handle('foundry-desktop:shortcuts-clear',event=>{requireCapability('globalShortcuts',event);for(const accelerator of registeredShortcuts)globalShortcut.unregister(accelerator);registeredShortcuts.clear();return true});`;
+  const menuAndLinkSetup=`let pendingDeepLink=process.argv.find(value=>value.startsWith(deepLinkScheme+'://'))||null;const sendDeepLink=url=>{if(!capabilities.deepLinks||typeof url!=='string'||!url.startsWith(deepLinkScheme+'://')||url.length>2048)return;pendingDeepLink=url;mainWindow?.webContents.send('foundry-desktop:deep-link-open',url);mainWindow?.show();mainWindow?.focus()};app.on('open-url',(event,url)=>{event.preventDefault();sendDeepLink(url)});app.on('second-instance',(_event,argv)=>sendDeepLink(argv.find(value=>value.startsWith(deepLinkScheme+'://'))));ipcMain.handle('foundry-desktop:deep-link-initial',event=>{requireCapability('deepLinks',event);const value=pendingDeepLink;pendingDeepLink=null;return value});ipcMain.handle('foundry-desktop:menu-configure',(event,value)=>{requireCapability('menus',event);const items=Array.isArray(value?.items)?value.items:[];if(!items.length||items.length>30)throw new Error('Menu configuration is invalid.');const normalized=items.map(item=>{const id=String(item?.id||''),label=String(item?.label||'').trim(),accelerator=item?.accelerator==null?undefined:String(item.accelerator).trim();if(!validId(id)||!label||label.length>80||(accelerator&&!/^[A-Za-z0-9+_-]{1,60}$/.test(accelerator)))throw new Error('Menu item identifiers, labels, or shortcuts are invalid.');return{label,...(accelerator?{accelerator}:{}),click:()=>mainWindow?.webContents.send('foundry-desktop:menu-action',id)}});Menu.setApplicationMenu(Menu.buildFromTemplate([{label:app.name,submenu:normalized}]));return true});`;
   return source.replace("const{app,BrowserWindow,clipboard,dialog,ipcMain,Notification}=require('electron');","const{app,BrowserWindow,clipboard,dialog,globalShortcut,ipcMain,Menu,nativeImage,Notification,Tray}=require('electron');")
     .replace("const path=require('node:path')","const deepLinkScheme='foundry-'+app.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');const path=require('node:path')")
     .replace('function createWindow(){const win=',`${clipboardSetup}${setup}${menuAndLinkSetup}function createWindow(){const win=mainWindow=`)
@@ -31,7 +44,7 @@ export function packagedNativeRuntime(source:string):string{
 
 export function packagedNativePreload(source:string):string{return source.replace("showNotification:(title,body='')=>ipcRenderer.invoke('foundry-desktop:notification-show',{title,body})",`showNotification:(title,body='')=>ipcRenderer.invoke('foundry-desktop:notification-show',{title,body}),tray:Object.freeze({configure:(tooltip,items)=>ipcRenderer.invoke('foundry-desktop:tray-configure',{tooltip,items}),onAction:listener=>{const handler=(_event,id)=>listener(id);ipcRenderer.on('foundry-desktop:tray-action',handler);return()=>ipcRenderer.removeListener('foundry-desktop:tray-action',handler)}}),shortcuts:Object.freeze({register:(accelerator,id)=>ipcRenderer.invoke('foundry-desktop:shortcut-register',{accelerator,id}),clear:()=>ipcRenderer.invoke('foundry-desktop:shortcuts-clear'),onAction:listener=>{const handler=(_event,id)=>listener(id);ipcRenderer.on('foundry-desktop:shortcut-action',handler);return()=>ipcRenderer.removeListener('foundry-desktop:shortcut-action',handler)}})`)}
 
-export function packagedManagedAiRuntime(source:string,managedAi:{gatewayUrl:string;token:string}|null):string{const setup=`const managedAi=${JSON.stringify(managedAi)};ipcMain.handle('foundry-desktop:ai-request',async(_event,payload)=>{if(!managedAi)throw new Error('Managed AI is not enabled for this app.');const encoded=JSON.stringify(payload);if(!payload||typeof payload!=='object'||encoded.length>250000)throw new Error('AI request must be an object under 250 KB.');const response=await fetch(managedAi.gatewayUrl+'/v1/apps/model/request',{method:'POST',headers:{Authorization:'Bearer '+managedAi.token,'Content-Type':'application/json'},body:JSON.stringify({requestId:'request_'+require('node:crypto').randomUUID().replace(/-/g,''),payload})}),body=await response.json();if(!response.ok)throw new Error(typeof body?.error==='string'?body.error:'Managed AI request failed.');return body});`;return source.replace("ipcMain.handle('foundry-desktop:open-text'",`${setup}ipcMain.handle('foundry-desktop:open-text'`)}
+export function packagedManagedAiRuntime(source:string,managedAi:{gatewayUrl:string;token:string}|null):string{const setup=`const managedAi=${JSON.stringify(managedAi)};ipcMain.handle('foundry-desktop:ai-request',async(event,payload)=>{requireTrustedSender(event);if(!managedAi)throw new Error('Managed AI is not enabled for this app.');const encoded=JSON.stringify(payload);if(!payload||typeof payload!=='object'||encoded.length>250000)throw new Error('AI request must be an object under 250 KB.');const response=await fetch(managedAi.gatewayUrl+'/v1/apps/model/request',{method:'POST',headers:{Authorization:'Bearer '+managedAi.token,'Content-Type':'application/json'},body:JSON.stringify({requestId:'request_'+require('node:crypto').randomUUID().replace(/-/g,''),payload})}),body=await response.json();if(!response.ok)throw new Error(typeof body?.error==='string'?body.error:'Managed AI request failed.');return body});`;return source.replace("ipcMain.handle('foundry-desktop:open-text'",`${setup}ipcMain.handle('foundry-desktop:open-text'`)}
 
 export function packagedMenuAndDeepLinkPreload(source:string):string{
   const base=packagedNativePreload(source),marker='shortcuts:Object.freeze(';
@@ -41,6 +54,29 @@ export function packagedMenuAndDeepLinkPreload(source:string):string{
 }
 
 export function packagedManagedAiPreload(source:string):string{return source.replace("Object.freeze({openTextFile",`Object.freeze({ai:Object.freeze({request:payload=>ipcRenderer.invoke('foundry-desktop:ai-request',payload)}),openTextFile`)}
+
+export function hardenPackagedRuntime(source:string):string{
+  const capabilityMarker=",requireCapability=name=>{if(!capabilities[name])throw new Error('This app is not allowed to use '+name+'. Enable it before packaging.')};let database;";
+  if(!source.includes(capabilityMarker))throw new Error('Generated runtime capability marker is missing.');
+  let hardened=source.replace(capabilityMarker,";let mainWindow,database;const requireTrustedSender=event=>{if(!mainWindow||mainWindow.isDestroyed()||!event||event.sender!==mainWindow.webContents)throw new Error('Native capability request was rejected.')},requireCapability=(name,event)=>{requireTrustedSender(event);if(!capabilities[name])throw new Error('This app is not allowed to use '+name+'. Enable it before packaging.')};");
+  const handlers:[string,string][]=[
+    ["ipcMain.handle('foundry-desktop:open-text',async()=>","ipcMain.handle('foundry-desktop:open-text',async event=>"],
+    ["ipcMain.handle('foundry-desktop:save-text',async(_event,value)=>","ipcMain.handle('foundry-desktop:save-text',async(event,value)=>"],
+    ["ipcMain.handle('foundry-desktop:folder-choose',async()=>","ipcMain.handle('foundry-desktop:folder-choose',async event=>"],
+    ["ipcMain.handle('foundry-desktop:database-get',(_event,value)=>","ipcMain.handle('foundry-desktop:database-get',(event,value)=>"],
+    ["ipcMain.handle('foundry-desktop:database-set',(_event,value)=>","ipcMain.handle('foundry-desktop:database-set',(event,value)=>"],
+    ["ipcMain.handle('foundry-desktop:database-delete',(_event,value)=>","ipcMain.handle('foundry-desktop:database-delete',(event,value)=>"],
+    ["ipcMain.handle('foundry-desktop:database-list',(_event,value)=>","ipcMain.handle('foundry-desktop:database-list',(event,value)=>"],
+    ["ipcMain.handle('foundry-desktop:clipboard-write',(_event,value)=>","ipcMain.handle('foundry-desktop:clipboard-write',(event,value)=>"],
+    ["ipcMain.handle('foundry-desktop:notification-show',(_event,value)=>","ipcMain.handle('foundry-desktop:notification-show',(event,value)=>"]
+  ];
+  for(const [before,after] of handlers){if(!hardened.includes(before))throw new Error(`Generated runtime IPC marker is missing: ${before}`);hardened=hardened.replace(before,after)}
+  hardened=hardened.replace(/requireCapability\('([A-Za-z]+)'\)/g,"requireCapability('$1',event)");
+  const windowMarker="win.webContents.setWindowOpenHandler(()=>({action:'deny'}));";
+  const networkPolicy="win.webContents.session.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*','ws://*/*','wss://*/*']},(details,callback)=>{let protocol='';try{protocol=new URL(details.url).protocol}catch{}const secure=protocol==='https:'||protocol==='wss:';callback({cancel:!capabilities.network||!secure})});";
+  if(!hardened.includes(windowMarker))throw new Error('Generated runtime window security marker is missing.');
+  return hardened.replace(windowMarker,networkPolicy+windowMarker);
+}
 
 export function addPermissionDisclosure(source:string,capabilities:Record<string,boolean>):string{
   const labels:Record<string,string>={openTextFile:'Open text files you choose',saveTextFile:'Save text files you choose',folderRead:'Inspect folders you choose',database:'Store data locally',network:'Connect to HTTPS services',clipboardRead:'Read clipboard text',clipboardWrite:'Write clipboard text',notifications:'Show desktop notifications',tray:'Run in the system tray',globalShortcuts:'Register global keyboard shortcuts',menus:'Add native application menus',deepLinks:'Open links addressed to this app'},enabled=Object.entries(capabilities).filter(([,value])=>value).map(([key])=>labels[key]??key);
@@ -55,22 +91,58 @@ export class InstallerService{
   async build(project:ProjectRecord,onProgress:(message:string)=>void=()=>{},options:InstallerBuildOptions={}):Promise<InstallerResult>{
     const config=await this.configs.reconcileNativeCapabilities(project),managedToken=await this.configs.getManagedToken(project),staging=join(project.root,'.foundry',options.qualification?'qualification-installer':'installer'),outputDirectory=join(project.root,'.foundry',options.qualification?'qualification-releases':'releases');
     if(config.ai.mode==='managed'&&!managedToken)throw new Error('Managed AI is enabled, but this project has no app credential. Provision it again in App settings.');
-    await mkdir(staging,{recursive:true});await mkdir(outputDirectory,{recursive:true});
+    if(options.qualification){await rm(staging,{recursive:true,force:true});await rm(outputDirectory,{recursive:true,force:true})}await mkdir(staging,{recursive:true});await mkdir(outputDirectory,{recursive:true});
     onProgress('Compiling the application…');
     const rendered=await this.preview.build(project,true);
     await writeFile(join(staging,'app.html'),rendered.html,'utf8');
-    await writeFile(join(staging,'main.cjs'),packagedManagedAiRuntime(packagedNativeRuntime(hardenPackagedDatabase(addPermissionDisclosure(runtimeMain(config),config.capabilities))),config.ai.mode==='managed'&&managedToken&&config.ai.gatewayUrl?{gatewayUrl:config.ai.gatewayUrl,token:managedToken}:null),'utf8');
+    await writeFile(join(staging,'main.cjs'),packagedManagedAiRuntime(packagedNativeRuntime(hardenPackagedRuntime(hardenPackagedDatabase(addPermissionDisclosure(runtimeMain(config),config.capabilities)))),config.ai.mode==='managed'&&managedToken&&config.ai.gatewayUrl?{gatewayUrl:config.ai.gatewayUrl,token:managedToken}:null),'utf8');
     await writeFile(join(staging,'preload.cjs'),packagedManagedAiPreload(packagedMenuAndDeepLinkPreload(runtimePreload)),'utf8');
-    await writeFile(join(staging,'package.json'),JSON.stringify({name:safeId(config.displayName),productName:config.displayName,description:config.description,author:config.publisher||'Foundry user',version:config.version,private:true,main:'main.cjs'},null,2),'utf8');
+    const packageTarget=packageTargetFor(),packageName=safeId(config.displayName),packageJson={name:packageName,productName:config.displayName,description:config.description,author:config.publisher||'Foundry user',version:config.version,private:true,main:'main.cjs',build:{appId:config.appId,productName:config.displayName,electronVersion:process.versions.electron,npmRebuild:false,nodeGypRebuild:false,asar:true,electronLanguages:['en-US'],compression:options.qualification?'store':'normal',files:['app.html','main.cjs','preload.cjs','package.json'],directories:{output:outputDirectory},artifactName:packageTarget.artifactName,win:{target:'nsis',...(config.icon?{icon:join(project.root,config.icon)}:{})},nsis:{oneClick:options.qualification?true:config.installer.oneClick,allowToChangeInstallationDirectory:options.qualification?false:config.installer.allowDirectorySelection,createDesktopShortcut:options.qualification?false:config.installer.desktopShortcut,createStartMenuShortcut:options.qualification?false:config.installer.startMenuShortcut},mac:{target:'dmg',category:'public.app-category.developer-tools',...(config.icon?{icon:join(project.root,config.icon)}:{})},linux:{target:'AppImage',category:'Development',...(config.icon?{icon:join(project.root,config.icon)}:{})}}};
+    await writeFile(join(staging,'package.json'),JSON.stringify(packageJson,null,2),'utf8');
+    // Keep electron-builder's package-manager discovery inside this generated app.
+    // Without a local lockfile it can fall back to Foundry's own workspace and scan
+    // the builder's full dependency tree, consuming enough memory to terminate Electron.
+    await writeFile(join(staging,'package-lock.json'),JSON.stringify({name:packageName,version:config.version,lockfileVersion:3,requires:true,packages:{'':{name:packageName,version:config.version}}},null,2),'utf8');
     onProgress(`Packaging the ${packageTargetFor().name} application…`);
-    process.env.NODE_USE_SYSTEM_CA='1';const packageTarget=packageTargetFor();
-    await build({projectDir:staging,targets:packageTarget.platform.createTarget(packageTarget.target,[Arch.x64]),config:{appId:config.appId,productName:config.displayName,electronVersion:process.versions.electron,asar:false,files:['app.html','main.cjs','preload.cjs','package.json'],directories:{output:outputDirectory},artifactName:packageTarget.artifactName,win:{target:'nsis',...(config.icon?{icon:join(project.root,config.icon)}:{})},nsis:{oneClick:options.qualification?true:config.installer.oneClick,allowToChangeInstallationDirectory:options.qualification?false:config.installer.allowDirectorySelection,createDesktopShortcut:options.qualification?false:config.installer.desktopShortcut,createStartMenuShortcut:options.qualification?false:config.installer.startMenuShortcut},mac:{target:'dmg',category:'public.app-category.developer-tools',...(config.icon?{icon:join(project.root,config.icon)}:{})},linux:{target:'AppImage',category:'Development',...(config.icon?{icon:join(project.root,config.icon)}:{})}}});
+    process.env.NODE_USE_SYSTEM_CA='1';if(!process.env.NODE_OPTIONS?.includes('--use-system-ca'))process.env.NODE_OPTIONS=`${process.env.NODE_OPTIONS??''} --use-system-ca`.trim();setDefaultCACertificates([...getCACertificates('default'),...getCACertificates('system')]);const shimDirectory=await preparePackageManagerShim(staging,packageTarget.name),cliPath=electronBuilderCliPath();
+    if(!existsSync(cliPath))throw new Error(`The generated-app packager command is missing from this Foundry installation: ${cliPath}`);
+    const platformArgument=packageTarget.name==='windows'?'--win':packageTarget.name==='macos'?'--mac':'--linux';
+    // Run electron-builder as an isolated Node child. Running it inside Electron
+    // leaves Electron's ASAR hooks active and can hang while NSIS is packaging.
+    const builderShim=join(shimDirectory,'electron-builder-shim.cjs');
+    await runBuilderChild(process.execPath,[builderShim,platformArgument,packageTarget.target,'--x64','--publish','never'],staging,{...process.env,ELECTRON_RUN_AS_NODE:'1',FOUNDRY_ELECTRON_BUILDER_CLI:cliPath,PATH:`${shimDirectory}${delimiter}${process.env.PATH??''}`});
     const files=await readdir(outputDirectory),installer=files.find(name=>packageTarget.extension.test(name)&&!/unpacked/i.test(name));
     if(!installer)throw new Error(`Packaging completed, but no ${packageTarget.name} installer was produced.`);
     const installerPath=join(outputDirectory,installer),checksum=createHash('sha256').update(await readFile(installerPath)).digest('hex'),checksumPath=`${installerPath}.sha256`;
     await writeFile(checksumPath,`${checksum}  ${installer}\n`,'utf8');
     const signed=packageTarget.name!=='linux'&&Boolean(process.env.CSC_LINK||process.env.WIN_CSC_LINK);onProgress(signed?'Signed installer and checksum ready.':'Unsigned installer and checksum ready.');return{installerPath,checksumPath,outputDirectory,signed,platform:packageTarget.name};
   }
+}
+
+function runBuilderChild(executable:string,args:string[],cwd:string,env:NodeJS.ProcessEnv):Promise<void>{
+  return new Promise((resolve,reject)=>{
+    // Foundry.exe is a Windows GUI executable. Capture output to a file because
+    // piping its console streams can produce EPIPE in the Node child.
+    const logPath=join(cwd,'.foundry-tools','electron-builder.log'),log=openSync(logPath,'w'),child=spawn(executable,args,{cwd,env,windowsHide:true,stdio:['ignore',log,log]});
+    closeSync(log);
+    let settled=false;
+    const finish=(error?:Error)=>{if(settled)return;settled=true;clearTimeout(timeout);error?reject(error):resolve()};
+    const detail=()=>{try{return readFileSync(logPath,'utf8').trim().slice(-4000)}catch{return''}};
+    const timeout=setTimeout(()=>{child.kill();finish(new Error(`Generated-app packaging timed out. ${detail()}`))},5*60_000);
+    child.once('error',error=>finish(error));
+    child.once('exit',(code,signal)=>code===0?finish():finish(new Error(`Generated-app packager exited with ${signal?`signal ${signal}`:`code ${code??'unknown'}`}. ${detail()}`)));
+  });
+}
+
+async function preparePackageManagerShim(staging:string,platform:PackagePlatform):Promise<string>{
+  const directory=join(staging,'.foundry-tools'),script=join(directory,'npm-shim.cjs');await mkdir(directory,{recursive:true});
+  await writeFile(script,"const fs=require('node:fs'),path=require('node:path'),pkg=JSON.parse(fs.readFileSync(path.join(process.cwd(),'package.json'),'utf8'));if(process.argv.includes('config'))process.stdout.write('node-linker=hoisted\\n');else process.stdout.write(JSON.stringify({name:pkg.name,version:pkg.version,path:process.cwd(),private:true,_dependencies:{},dependencies:{}}));",'utf8');
+  // yargs detects the Electron runtime and removes only argv[0]. Remove this
+  // wrapper's path first so electron-builder receives the same argv as Node.
+  await writeFile(join(directory,'electron-builder-shim.cjs'),"process.noAsar=true;process.argv.splice(1,1);require(process.env.FOUNDRY_ELECTRON_BUILDER_CLI);",'utf8');
+  if(platform==='windows')await writeFile(join(directory,'npm.cmd'),`@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" "%~dp0npm-shim.cjs" %*\r\n`,'utf8');
+  else{const launcher=join(directory,'npm');await writeFile(launcher,`#!/bin/sh\nELECTRON_RUN_AS_NODE=1 "${process.execPath}" "$(dirname "$0")/npm-shim.cjs" "$@"\n`,'utf8');await chmod(launcher,0o755)}
+  return directory;
 }
 
 function safeId(name:string):string{return name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'foundry-app'}
@@ -82,7 +154,7 @@ export function hardenPackagedDatabase(source:string):string{
   const safe=`let database;const fsSync=require('node:fs'),databaseFile=path.join(app.getPath('userData'),'app.sqlite'),backupDirectory=path.join(app.getPath('userData'),'.foundry-backups'),backupFiles=()=>fsSync.existsSync(backupDirectory)?fsSync.readdirSync(backupDirectory).filter(name=>name.endsWith('.sqlite')).map(name=>path.join(backupDirectory,name)).sort((a,b)=>fsSync.statSync(b).mtimeMs-fsSync.statSync(a).mtimeMs):[],createBackup=()=>{database?.exec('PRAGMA wal_checkpoint(TRUNCATE)');fsSync.mkdirSync(backupDirectory,{recursive:true});const target=path.join(backupDirectory,'app.'+new Date().toISOString().replace(/[:.]/g,'-')+'.sqlite');fsSync.copyFileSync(databaseFile,target);for(const stale of backupFiles().slice(5))fsSync.rmSync(stale,{force:true});return target},quarantine=()=>{if(!fsSync.existsSync(databaseFile))return;fsSync.renameSync(databaseFile,databaseFile+'.corrupt-'+Date.now());for(const suffix of ['-wal','-shm'])fsSync.rmSync(databaseFile+suffix,{force:true})},openDatabase=allowMigration=>{const candidate=new DatabaseSync(databaseFile);try{candidate.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');const integrity=candidate.prepare('PRAGMA integrity_check').get();if(integrity.integrity_check!=='ok')throw new Error('Database integrity check failed.');const version=candidate.prepare('PRAGMA user_version').get().user_version;if(version>1)throw new Error('Database schema is newer than this app supports.');if(version<1){if(!allowMigration)throw new Error('Backup schema is unsupported.');database=candidate;createBackup();candidate.exec('BEGIN IMMEDIATE');try{candidate.exec('CREATE TABLE IF NOT EXISTS foundry_data(namespace TEXT NOT NULL,key TEXT NOT NULL,value TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(namespace,key)); PRAGMA user_version=1; COMMIT')}catch(error){candidate.exec('ROLLBACK');throw error}}return candidate}catch(error){candidate.close();throw error}},db=()=>{if(database)return database;try{database=openDatabase(true)}catch(error){const latest=backupFiles()[0];if(!latest)throw error;quarantine();fsSync.copyFileSync(latest,databaseFile);database=openDatabase(false)}return database},restoreLatest=()=>{database?.close();database=undefined;const latest=backupFiles()[0];if(!latest)return false;quarantine();fsSync.copyFileSync(latest,databaseFile);database=openDatabase(false);return true}`;
   const collisionSafe=safe.replace("+'.sqlite'","+'-'+require('node:crypto').randomUUID()+'.sqlite'");
   let hardened=source.slice(0,start)+collisionSafe+source.slice(end),marker="ipcMain.handle('foundry-desktop:clipboard-write'";if(!hardened.includes(marker))throw new Error('Packaged database IPC marker is missing.');
-  const controls=`ipcMain.handle('foundry-desktop:database-backup',()=>{requireCapability('database');db();createBackup();return true});ipcMain.handle('foundry-desktop:database-restore-latest',async()=>{requireCapability('database');const answer=await dialog.showMessageBox({type:'warning',buttons:['Cancel','Restore backup'],defaultId:0,cancelId:0,title:'Restore app data?',message:'Restore the latest app-data backup?',detail:'The current database will be preserved as a quarantined recovery file.'});return answer.response===1?restoreLatest():false});`;
+  const controls=`ipcMain.handle('foundry-desktop:database-backup',event=>{requireCapability('database',event);db();createBackup();return true});ipcMain.handle('foundry-desktop:database-restore-latest',async event=>{requireCapability('database',event);const answer=await dialog.showMessageBox({type:'warning',buttons:['Cancel','Restore backup'],defaultId:0,cancelId:0,title:'Restore app data?',message:'Restore the latest app-data backup?',detail:'The current database will be preserved as a quarantined recovery file.'});return answer.response===1?restoreLatest():false});`;
   return hardened.replace(marker,controls+marker)
 }
 

@@ -10,10 +10,10 @@ export type QualificationCheck={stage:QualificationStage;passed:boolean;detail:s
 export type QualificationResult={id:string;passed:boolean;startedAt:string;completedAt:string;checks:QualificationCheck[];installerPath?:string};
 type CommandResult={code:number|null;survived?:boolean};
 type CommandRunner=(file:string,args:string[],options:{timeoutMs:number;survivalMs?:number;env?:NodeJS.ProcessEnv})=>Promise<CommandResult>;
-type Options={root:string;verify:()=>Promise<VerificationResult>;build:(progress:(message:string)=>void)=>Promise<InstallerResult>;onProgress?:(message:string)=>void;runner?:CommandRunner};
+type Options={root:string;verify:()=>Promise<VerificationResult>;build:(progress:(message:string)=>void)=>Promise<InstallerResult>;onProgress?:(message:string)=>void;runner?:CommandRunner;verificationTimeoutMs?:number};
 
 export class ReleaseQualificationService{
-  constructor(private readonly options:Options){}
+  constructor(private readonly options:Options){const verify=options.verify;this.options.verify=()=>withTimeout(verify(),options.verificationTimeoutMs??90_000,'Application workflow verification timed out. Close any generated-app dialogs and try Release Check again.')}
   async run():Promise<QualificationResult>{
     const id=randomUUID(),startedAt=new Date().toISOString(),checks:QualificationCheck[]=[],testRoot=join(resolve(this.options.root),id),installRoot=join(testRoot,'installed'),dataRoot=join(testRoot,'data'),runner=this.options.runner??runCommand;let installerPath:string|undefined,stopped=false,installedToDisk=false,mountedMac=false;
     await mkdir(testRoot,{recursive:true});
@@ -33,3 +33,4 @@ async function findApplicationExecutable(root:string,platform:'windows'|'macos'|
 async function findUninstaller(root:string):Promise<string|undefined>{const entries=await readdir(root,{withFileTypes:true});for(const entry of entries){const path=join(root,entry.name);if(entry.isDirectory()){const nested=await findUninstaller(path);if(nested)return nested}else if(entry.isFile()&&/^uninstall.*\.exe$/i.test(entry.name))return path}}
 async function safeRemove(target:string,root:string):Promise<void>{const resolvedTarget=resolve(target),resolvedRoot=resolve(root),rel=relative(resolvedRoot,resolvedTarget);if(!rel||rel.startsWith('..')||rel.includes(`..${sep}`))throw new Error('Refused to clean a path outside the qualification root.');await rm(resolvedTarget,{recursive:true,force:true})}
 function runCommand(file:string,args:string[],options:{timeoutMs:number;survivalMs?:number;env?:NodeJS.ProcessEnv}):Promise<CommandResult>{return new Promise((resolvePromise,reject)=>{const child=spawn(file,args,{windowsHide:true,env:options.env,stdio:'ignore'});let settled=false;const finish=(value:CommandResult)=>{if(settled)return;settled=true;clearTimeout(timeout);resolvePromise(value)},timeout=setTimeout(()=>{child.kill();reject(new Error('Qualification process timed out.'))},options.timeoutMs);child.once('error',reject);child.once('exit',code=>finish({code,survived:false}));if(options.survivalMs)setTimeout(()=>{if(child.exitCode===null&&!child.killed){child.kill();finish({code:null,survived:true})}},options.survivalMs)})}
+function withTimeout<T>(operation:Promise<T>,timeoutMs:number,message:string):Promise<T>{return new Promise((resolvePromise,reject)=>{const timeout=setTimeout(()=>reject(new Error(message)),timeoutMs);operation.then(value=>{clearTimeout(timeout);resolvePromise(value)},error=>{clearTimeout(timeout);reject(error)})})}

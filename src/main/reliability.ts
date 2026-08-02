@@ -23,7 +23,7 @@ export function verificationStage(result:VerificationResult):BenchmarkFailureSta
 
 export function behaviorRepairPrompt(request:string,result:VerificationResult,attempt:number,workflow:WorkflowStep[]):string{
   const stage=verificationStage(result),diagnostic=failedVerificationChecks(result).map(check=>`- ${check.name}: ${check.detail}`).join('\n');
-  return `Repair attempt ${attempt} for a ${stage} verification failure caused by the preceding request.\n\nOriginal request:\n${request.slice(0,3000)}\n\nRequired workflow (preserve these exact visible labels and outcomes):\n${JSON.stringify(workflow)}\n\nFailed checks:\n${diagnostic.slice(0,5000)}\n\nInspect the current implementation and fix the root cause only. Do not redesign working areas, remove required labels, replace the workflow, or weaken persistence. Validate the project before finishing.`;
+  return `Repair attempt ${attempt} for a ${stage} verification failure caused by the preceding request.\n\nOriginal request:\n${request.slice(0,3000)}\n\nRequired workflow (preserve these exact visible labels and outcomes):\n${JSON.stringify(workflow)}\n\nFailed checks:\n${diagnostic.slice(0,5000)}\n\nInspect the current implementation and fix the root cause only. Every click workflow target must remain a real visible <button> (or role="button") with the exact required accessible label; never replace it with a checkbox, hidden control, or styled non-button. Do not redesign working areas, remove required labels, replace the workflow, or weaken persistence. Validate the project before finishing.`;
 }
 
 export function visualRepairPrompt(request:string,issues:string[],attempt:number):string{

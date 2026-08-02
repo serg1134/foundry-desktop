@@ -1,16 +1,16 @@
 {
   "name": "foundry-desktop",
-  "version": "0.7.0",
+  "version": "0.7.5",
   "description": "A Windows-first AI desktop application builder.",
   "author": "Foundry",
   "private": true,
   "type": "module",
-  "main": "out/main/index.js",
+  "main": "out/main/index.cjs",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "tsc --noEmit && electron-vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-transform-types --test tests/*.test.ts",
+    "test": "node --experimental-transform-types --test --test-concurrency=1 tests/*.test.ts",
     "release:audit": "node scripts/generate-release-audit.mjs",
     "gateway:dev": "node --experimental-transform-types src/main/gateway/server.ts",
     "dist:win": "npm run build && electron-builder --win nsis --x64",
@@ -51,11 +51,7 @@
     "productName": "Foundry",
     "asar": true,
     "asarUnpack": [
-      "node_modules/esbuild/**",
-      "node_modules/@esbuild/**",
-      "node_modules/app-builder-bin/**",
-      "node_modules/app-builder-lib/**",
-      "node_modules/electron-builder/**"
+      "node_modules/**"
     ],
     "files": [
       "out/**",

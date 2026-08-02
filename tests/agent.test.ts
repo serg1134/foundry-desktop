@@ -13,14 +13,56 @@ test('agent executes a bounded Responses API tool loop',async()=>{
   const workspace=new WorkspaceService(join(sandbox,'projects.json')),checkpoints=new CheckpointService(),project=await workspace.createProject(projectsRoot,'Agent App');await checkpoints.ensure(project);
   const responses=[
     {id:'resp_1',output:[{type:'function_call',call_id:'call_1',name:'list_files',arguments:'{}'},{type:'function_call',call_id:'call_2',name:'read_file',arguments:JSON.stringify({path:'src/main.tsx'})}]},
-    {id:'resp_2',output:[{type:'function_call',call_id:'call_3',name:'write_file',arguments:JSON.stringify({path:'src/main.tsx',content:'export const agentChanged = true;\n'})}]},
+    {id:'resp_2',output:[{type:'function_call',call_id:'call_3',name:'write_file',arguments:JSON.stringify({path:'src/main.tsx',content:'export const agentChanged = true; // Note title Save note\n'})}]},
     {id:'resp_3',output:[{type:'function_call',call_id:'call_4',name:'set_test_plan',arguments:JSON.stringify({steps:[{action:'fill',target:'Note title',value:'Release plan'},{action:'click',target:'Save note',value:''},{action:'assert_text',target:'',value:'Release plan'},{action:'assert_hover',target:'Save note',value:''},{action:'assert_persisted_text',target:'',value:'Release plan'}]})},{type:'function_call',call_id:'call_5',name:'validate_project',arguments:'{}'}]},
     {id:'resp_4',output:[{type:'message',content:[{type:'output_text',text:'Updated the main entry and validated the project.'}]}]}
   ];
   const bodies:Record<string,unknown>[]=[],events:AgentEvent[]=[];let compileChecks=0;
   const mockFetch=async(_url:string,init:RequestInit)=>{bodies.push(JSON.parse(String(init.body)) as Record<string,unknown>);return new Response(JSON.stringify(responses.shift()),{status:200,headers:{'Content-Type':'application/json'}})};
   const agent=new AgentService(workspace,checkpoints,mockFetch,async()=>{compileChecks++}),result=await agent.run(project,'Update the main entry',credential,event=>events.push(event));
-  assert.equal(result.message,'Updated the main entry and validated the project.');assert.deepEqual(result.filesChanged,['src/main.tsx']);assert.deepEqual(result.workflow.map(step=>step.action),['fill','click','assert_text','assert_hover','assert_persisted_text']);assert.equal(await readFile(join(project.root,'src','main.tsx'),'utf8'),'export const agentChanged = true;\n');assert.equal(bodies.length,4);assert.equal(bodies[1].previous_response_id,'resp_1');assert.equal(compileChecks,1);assert.equal(events.filter(event=>event.type==='plan').length,4);assert.ok(events.some(event=>event.message==='Prepared 5-step workflow test'));assert.ok(events.some(event=>event.message==='Launch and verify the rendered app'));assert.ok(events.some(event=>event.message==='Compile-checking the project'));assert.ok((await checkpoints.list(project)).some(item=>item.message.startsWith('Before AI:')));
+  assert.equal(result.message,'Updated the main entry and validated the project.');assert.deepEqual(result.filesChanged,['src/main.tsx']);assert.deepEqual(result.workflow.map(step=>step.action),['fill','click','assert_text','assert_hover','assert_persisted_text']);assert.equal(await readFile(join(project.root,'src','main.tsx'),'utf8'),'export const agentChanged = true; // Note title Save note\n');assert.equal(bodies.length,4);assert.equal(bodies[1].previous_response_id,'resp_1');assert.equal(compileChecks,1);assert.equal(events.filter(event=>event.type==='plan').length,4);assert.ok(events.some(event=>event.message==='Prepared 5-step workflow test'));assert.ok(events.some(event=>event.message==='Launch and verify the rendered app'));assert.ok(events.some(event=>event.message==='Compile-checking the project'));assert.ok((await checkpoints.list(project)).some(item=>item.message.startsWith('Before AI:')));
+});
+
+test('agent rejects unsafe workflow clicks and accepts clipboard-intent workflow',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-agent-safe-plan-')),projectsRoot=join(sandbox,'projects');await mkdir(projectsRoot);
+  const workspace=new WorkspaceService(join(sandbox,'projects.json')),checkpoints=new CheckpointService(),project=await workspace.createProject(projectsRoot,'Safe Plan App');await checkpoints.ensure(project);
+  await workspace.writeText(project,'src/main.tsx','export const labels = "Write E2E phrase";\n');
+  const responses=[
+    {id:'plan_1',output:[{type:'function_call',call_id:'unsafe',name:'set_test_plan',arguments:JSON.stringify({steps:[{action:'click',target:'Delete record',value:''}]})}]},
+    {id:'plan_2',output:[{type:'function_call',call_id:'safe',name:'set_test_plan',arguments:JSON.stringify({steps:[{action:'click',target:'Write E2E phrase',value:''},{action:'assert_clipboard',target:'',value:'Foundry clipboard E2E'}]})}]},
+    {id:'plan_3',output:[{type:'message',content:[{type:'output_text',text:'Prepared a safe workflow.'}]}]}
+  ],bodies:Record<string,unknown>[]=[];
+  const mockFetch=async(_url:string,init:RequestInit)=>{bodies.push(JSON.parse(String(init.body)) as Record<string,unknown>);return new Response(JSON.stringify(responses.shift()),{status:200,headers:{'Content-Type':'application/json'}})};
+  const result=await new AgentService(workspace,checkpoints,mockFetch).run(project,'Build clipboard controls',credential);
+  assert.deepEqual(result.workflow.map(step=>step.action),['click','assert_clipboard']);
+  assert.match(JSON.stringify(bodies[1].input),/unsafe control: Delete record/);
+});
+
+test('agent rejects workflow targets that do not exist in current source',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-agent-target-plan-')),projectsRoot=join(sandbox,'projects');await mkdir(projectsRoot);
+  const workspace=new WorkspaceService(join(sandbox,'projects.json')),checkpoints=new CheckpointService(),project=await workspace.createProject(projectsRoot,'Target Plan App');await checkpoints.ensure(project);
+  await workspace.writeText(project,'src/main.tsx','export const labels = "Write E2E phrase";\n');
+  const responses=[
+    {id:'target_1',output:[{type:'function_call',call_id:'missing',name:'set_test_plan',arguments:JSON.stringify({steps:[{action:'click',target:'Write test phrase',value:''},{action:'assert_clipboard',target:'',value:'Foundry clipboard E2E'}]})}]},
+    {id:'target_2',output:[{type:'function_call',call_id:'present',name:'set_test_plan',arguments:JSON.stringify({steps:[{action:'click',target:'Write E2E phrase',value:''},{action:'assert_clipboard',target:'',value:'Foundry clipboard E2E'}]})}]},
+    {id:'target_3',output:[{type:'message',content:[{type:'output_text',text:'Prepared an exact-label workflow.'}]}]}
+  ],bodies:Record<string,unknown>[]=[];
+  const mockFetch=async(_url:string,init:RequestInit)=>{bodies.push(JSON.parse(String(init.body)) as Record<string,unknown>);return new Response(JSON.stringify(responses.shift()),{status:200,headers:{'Content-Type':'application/json'}})};
+  const result=await new AgentService(workspace,checkpoints,mockFetch).run(project,'Test clipboard controls',credential);
+  assert.equal(result.workflow[0]?.target,'Write E2E phrase');
+  assert.match(JSON.stringify(bodies[1].input),/not present in the current project source: write test phrase/);
+});
+
+test('agent rejects Node.js built-ins in renderer files and keeps the working source',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-agent-renderer-')),projectsRoot=join(sandbox,'projects');await mkdir(projectsRoot);
+  const workspace=new WorkspaceService(join(sandbox,'projects.json')),checkpoints=new CheckpointService(),project=await workspace.createProject(projectsRoot,'Renderer Guard');await checkpoints.ensure(project);
+  const original=await readFile(join(project.root,'src','main.tsx'),'utf8'),responses=[
+    {id:'renderer_1',output:[{type:'function_call',call_id:'unsafe',name:'write_file',arguments:JSON.stringify({path:'src/main.tsx',content:"import module from 'node:module'; export const broken=module;"})}]},
+    {id:'renderer_2',output:[{type:'message',content:[{type:'output_text',text:'Kept the browser-safe renderer.'}]}]}
+  ],bodies:Record<string,unknown>[]=[];
+  const mockFetch=async(_url:string,init:RequestInit)=>{bodies.push(JSON.parse(String(init.body)) as Record<string,unknown>);return new Response(JSON.stringify(responses.shift()),{status:200,headers:{'Content-Type':'application/json'}})};
+  const result=await new AgentService(workspace,checkpoints,mockFetch).run(project,'Build a desktop app',credential);
+  assert.equal(result.message,'Kept the browser-safe renderer.');assert.equal(await readFile(join(project.root,'src','main.tsx'),'utf8'),original);assert.deepEqual(result.filesChanged,[]);assert.match(JSON.stringify(bodies[1].input),/cannot import Node\.js built-ins/);
 });
 
 test('agent surfaces API errors without modifying files',async()=>{

@@ -11,7 +11,7 @@ export class CrashReportService{
     const message=redactDiagnostic(input.message),report:CrashReport={id:randomUUID(),at:new Date().toISOString(),source:input.source,message,fingerprint:createHash('sha256').update(`${input.source}:${message}`).digest('hex').slice(0,12),appVersion:this.appVersion,platform:this.platform,...(input.projectId?{projectId:input.projectId}:{})},reports=await this.list();
     await mkdir(dirname(this.file),{recursive:true});await writeFile(this.file,JSON.stringify([report,...reports].slice(0,100),null,2),'utf8');return report;
   }
-  async list(projectId?:string):Promise<CrashReport[]>{try{const value=JSON.parse(await readFile(this.file,'utf8'));if(!Array.isArray(value))return[];const reports=value.filter(isCrashReport) as CrashReport[];return projectId?reports.filter(report=>report.projectId===projectId):reports}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return[];throw error}}
+  async list(projectId?:string):Promise<CrashReport[]>{try{const value=JSON.parse(await readFile(this.file,'utf8'));if(!Array.isArray(value))return[];const reports=value.filter(isCrashReport) as CrashReport[];return projectId?reports.filter(report=>report.projectId===projectId):reports}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT'||error instanceof SyntaxError)return[];throw error}}
 }
 
 export function redactDiagnostic(value:unknown):string{

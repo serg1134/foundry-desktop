@@ -8,7 +8,7 @@ import { ProjectConfigService } from '../src/main/project-config.ts';
 
 test('project configuration persists validated identity and window settings',async()=>{
   const sandbox=await mkdtemp(join(tmpdir(),'foundry-config-')),parent=join(sandbox,'projects');await mkdir(parent);const workspace=new WorkspaceService(join(sandbox,'registry.json')),project=await workspace.createProject(parent,'Config App'),service=new ProjectConfigService(testProtector),defaults=await service.get(project);
-  assert.equal(defaults.displayName,'Config App');assert.deepEqual(defaults.capabilities,{openTextFile:true,saveTextFile:true,folderRead:false,database:false,network:false,clipboardRead:false,clipboardWrite:false,notifications:false,tray:false,globalShortcuts:false,menus:false,deepLinks:false});const saved=await service.save(project,{...defaults,displayName:'Configured App',version:'1.2.3',window:{...defaults.window,width:1440,height:900},capabilities:{...defaults.capabilities,database:true,notifications:true,tray:true,globalShortcuts:true}});assert.equal(saved.version,'1.2.3');assert.equal(saved.capabilities.database,true);assert.equal(saved.capabilities.notifications,true);assert.equal(saved.capabilities.tray,true);assert.equal(saved.capabilities.globalShortcuts,true);assert.equal((await service.get(project)).window.width,1440);
+  assert.equal(defaults.displayName,'Config App');assert.deepEqual(defaults.capabilities,{openTextFile:false,saveTextFile:false,folderRead:false,database:false,network:false,clipboardRead:false,clipboardWrite:false,notifications:false,tray:false,globalShortcuts:false,menus:false,deepLinks:false});const saved=await service.save(project,{...defaults,displayName:'Configured App',version:'1.2.3',window:{...defaults.window,width:1440,height:900},capabilities:{...defaults.capabilities,database:true,notifications:true,tray:true,globalShortcuts:true}});assert.equal(saved.version,'1.2.3');assert.equal(saved.capabilities.database,true);assert.equal(saved.capabilities.notifications,true);assert.equal(saved.capabilities.tray,true);assert.equal(saved.capabilities.globalShortcuts,true);assert.equal((await service.get(project)).window.width,1440);
   const token='fapp_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN';assert.equal(defaults.ai.mode,'none');await service.saveManagedToken(project,token);assert.equal((await readFile(join(project.root,'.foundry','managed-ai.token'),'utf8')).includes(token),false);assert.match(await service.getManagedToken(project)??'',/^fapp_/);await service.clearManagedToken(project);assert.equal(await service.getManagedToken(project),null);
 });
 
@@ -26,4 +26,36 @@ test('native capabilities used by generated source are enabled automatically',as
   const sandbox=await mkdtemp(join(tmpdir(),'foundry-config-native-')),parent=join(sandbox,'projects');await mkdir(parent);const workspace=new WorkspaceService(join(sandbox,'registry.json')),project=await workspace.createProject(parent,'Native App'),service=new ProjectConfigService();
   await writeFile(join(project.root,'src','main.tsx'),`fetch('https://example.com/data'); window.foundryDesktop.readClipboardText(); window.foundryDesktop.writeClipboardText('hello'); window.foundryDesktop?.tray.configure('App',[]); window.foundryDesktop.shortcuts.register('Ctrl+Shift+V','show'); window.foundryDesktop.menus.configure([{id:'new',label:'New'}]); window.foundryDesktop.deepLinks.onOpen(console.log)`);
   const config=await service.reconcileNativeCapabilities(project);assert.equal(config.capabilities.network,true);assert.equal(config.capabilities.clipboardRead,true);assert.equal(config.capabilities.clipboardWrite,true);assert.equal(config.capabilities.tray,true);assert.equal(config.capabilities.globalShortcuts,true);assert.equal(config.capabilities.menus,true);assert.equal(config.capabilities.deepLinks,true);
+});
+
+test('generated PNG icons are validated, stored locally, and available for preview',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-config-generated-icon-')),parent=join(sandbox,'projects');await mkdir(parent);const workspace=new WorkspaceService(join(sandbox,'registry.json')),project=await workspace.createProject(parent,'Generated Icon App'),service=new ProjectConfigService(testProtector),png=Buffer.from([137,80,78,71,13,10,26,10,1,2,3]);
+  const configured=await service.setIconPng(project,png);assert.equal(configured.icon,'.foundry/app-icon.png');assert.equal(await service.iconDataUrl(project),`data:image/png;base64,${png.toString('base64')}`);await assert.rejects(service.setIconPng(project,Buffer.from('not an image')),/valid PNG/);
+  const defaults=await service.get(project);const sanitized=await service.save(project,{...defaults,icon:'../../outside.png'});assert.equal(sanitized.icon,undefined);
+});
+
+test('native capabilities are detected through generated bridge aliases',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-config-native-alias-')),parent=join(sandbox,'projects');await mkdir(parent);const workspace=new WorkspaceService(join(sandbox,'registry.json')),project=await workspace.createProject(parent,'Aliased Native App'),service=new ProjectConfigService();
+  await writeFile(join(project.root,'src','main.tsx'),`const desktopBridge=window.foundryDesktop; function App(){const desktop=desktopBridge; desktop!.database.set('notes','one',{text:'Durable'}); desktop!.writeClipboardText('Foundry clipboard E2E'); desktop.readClipboardText(); desktop.openTextFile(); desktop.saveTextFile('text'); desktop.chooseFolder(); desktop.showNotification('Done'); desktop.menus.configure([]); desktop.tray.configure('App',[]); desktop.shortcuts.register('Ctrl+Shift+Y','show'); desktop.deepLinks.getInitial();}`);
+  const config=await service.reconcileNativeCapabilities(project);assert.deepEqual(config.capabilities,{openTextFile:true,saveTextFile:true,folderRead:true,database:true,network:false,clipboardRead:true,clipboardWrite:true,notifications:true,tray:true,globalShortcuts:true,menus:true,deepLinks:true});
+});
+
+test('native capabilities are detected through a bridge-returning helper',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-config-native-helper-')),parent=join(sandbox,'projects');await mkdir(parent);const workspace=new WorkspaceService(join(sandbox,'registry.json')),project=await workspace.createProject(parent,'Helper Native App'),service=new ProjectConfigService();
+  await writeFile(join(project.root,'src','main.tsx'),`const bridge=()=>{if(!window.foundryDesktop)throw new Error('Unavailable');return window.foundryDesktop}; bridge().writeClipboardText('hello'); bridge().readClipboardText(); bridge().showNotification('Done');`);
+  const config=await service.reconcileNativeCapabilities(project);assert.equal(config.capabilities.clipboardWrite,true);assert.equal(config.capabilities.clipboardRead,true);assert.equal(config.capabilities.notifications,true);
+});
+
+test('generated capabilities are revoked when source no longer requires them',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-capability-revoke-')),parent=join(sandbox,'projects');await mkdir(parent);const workspace=new WorkspaceService(join(sandbox,'registry.json')),project=await workspace.createProject(parent,'Capability Revoke'),service=new ProjectConfigService(testProtector);
+  await workspace.writeText(project,'src/main.tsx',`window.foundryDesktop?.writeClipboardText('hello'); fetch('https://example.com');`);
+  let config=await service.reconcileNativeCapabilities(project);assert.equal(config.capabilities.clipboardWrite,true);assert.equal(config.capabilities.network,true);
+  await workspace.writeText(project,'src/main.tsx',`export const safe = true;`);
+  config=await service.reconcileNativeCapabilities(project);assert.equal(config.capabilities.clipboardWrite,false);assert.equal(config.capabilities.network,false);
+});
+
+test('reconciliation preserves capabilities explicitly enabled by the user',async()=>{
+  const sandbox=await mkdtemp(join(tmpdir(),'foundry-capability-manual-')),parent=join(sandbox,'projects');await mkdir(parent);const workspace=new WorkspaceService(join(sandbox,'registry.json')),project=await workspace.createProject(parent,'Capability Manual'),service=new ProjectConfigService(testProtector);
+  const defaults=await service.get(project);await service.save(project,{...defaults,capabilities:{...defaults.capabilities,notifications:true}});
+  const config=await service.reconcileNativeCapabilities(project);assert.equal(config.capabilities.notifications,true);
 });

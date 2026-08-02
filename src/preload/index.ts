@@ -78,7 +78,11 @@ const api={
     get:(projectId:string):Promise<ProjectConfig>=>ipcRenderer.invoke('project-config:get',projectId),
     save:(projectId:string,value:ProjectConfig):Promise<ProjectConfig>=>ipcRenderer.invoke('project-config:save',projectId,value),
     provisionAi:(projectId:string,value:ProjectConfig):Promise<ProjectConfig>=>ipcRenderer.invoke('project-config:provision-ai',projectId,value),
-    chooseIcon:(projectId:string):Promise<ProjectConfig|null>=>ipcRenderer.invoke('project-config:choose-icon',projectId)
+    chooseIcon:(projectId:string):Promise<ProjectConfig|null>=>ipcRenderer.invoke('project-config:choose-icon',projectId),
+    iconData:(projectId:string):Promise<string|null>=>ipcRenderer.invoke('project-config:icon-data',projectId),
+    generateIcon:(projectId:string,prompt:string):Promise<string>=>ipcRenderer.invoke('project-config:generate-icon',projectId,prompt),
+    applyIcon:(projectId:string,dataUrl:string):Promise<ProjectConfig>=>ipcRenderer.invoke('project-config:apply-icon',projectId,dataUrl),
+    starterIcon:(projectId:string,style:string):Promise<ProjectConfig>=>ipcRenderer.invoke('project-config:starter-icon',projectId,style)
   },
   updates:{
     get:():Promise<UpdateStatus>=>ipcRenderer.invoke('updates:get'),
