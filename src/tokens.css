@@ -1,0 +1,29 @@
+/* Foundry design tokens: the single source of truth for theme, rhythm, and motion. */
+:root{
+  color-scheme:dark;
+  --color-bg:#090b0f;--color-bg-deep:#07090c;
+  --color-surface:rgba(21,24,30,.78);--color-surface-raised:rgba(31,35,43,.82);--color-surface-hover:rgba(255,255,255,.075);
+  --color-border:rgba(255,255,255,.085);--color-border-strong:rgba(255,255,255,.15);
+  --color-text:#f4f5f7;--color-text-muted:#9298a4;
+  --color-accent:#9aa7ba;--color-accent-strong:#c1c8d2;--color-brand:#ff7448;--color-brand-strong:#ff9b78;
+  --color-success:#59d69d;--color-warning:#f2bd5b;--color-danger:#ff6f5b;
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;
+  --radius-xs:6px;--radius-sm:10px;--radius-md:13px;--radius-lg:17px;--radius-xl:23px;--radius-pill:999px;
+  --shadow-sm:0 4px 14px rgba(0,0,0,.18);--shadow-md:0 20px 60px rgba(0,0,0,.38);--shadow-lg:0 35px 110px rgba(0,0,0,.46);
+  --blur-sm:blur(12px);--blur-md:blur(22px) saturate(135%);--blur-lg:blur(28px) saturate(145%);
+  --duration-fast:120ms;--duration-normal:180ms;--duration-slow:280ms;--ease-standard:cubic-bezier(.22,1,.36,1);--ease-spring:cubic-bezier(.2,.75,.25,1);
+  --focus-ring:0 0 0 3px rgba(145,161,184,.2);
+  --forge-black:var(--color-bg);--forge-deep:var(--color-bg-deep);--forge-surface:var(--color-surface);--forge-raised:var(--color-surface-raised);
+  --forge-line:var(--color-border);--forge-ember:var(--color-brand);--forge-gold:var(--color-brand-strong);--forge-paper:var(--color-text);--forge-slag:var(--color-text-muted);
+  --bg:var(--color-bg);--panel:var(--color-surface);--panel-2:var(--color-surface-raised);--panel-3:rgba(255,255,255,.045);
+  --line:var(--color-border);--border-soft:var(--color-border);--border-strong:var(--color-border-strong);--text:var(--color-text);--muted:var(--color-text-muted);
+  --accent:var(--color-accent);--accent-2:var(--color-accent-strong);--green:var(--color-success);--surface-raised:var(--color-surface-raised);--surface-hover:var(--color-surface-hover);
+  --glass-blur:var(--blur-lg);--glass-shadow:0 24px 70px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.055);--ease:var(--ease-standard)
+}
+.light-shell{
+  color-scheme:light;
+  --color-bg:#e8e9eb;--color-bg-deep:#e2e4e7;--color-surface:rgba(255,255,255,.52);--color-surface-raised:rgba(255,255,255,.68);--color-surface-hover:#eceef2;
+  --color-border:rgba(26,30,42,.1);--color-border-strong:rgba(26,30,42,.18);--color-text:#1b1d22;--color-text-muted:#72757e;
+  --color-accent:#292b30;--color-accent-strong:#55585f;--focus-ring:0 0 0 3px rgba(41,43,48,.16);--panel-3:rgba(26,30,42,.045)
+}
+@media(prefers-reduced-motion:reduce){:root{--duration-fast:.01ms;--duration-normal:.01ms;--duration-slow:.01ms}}

@@ -10,6 +10,7 @@ import type { BenchmarkSnapshot } from '../main/benchmarks';
 import type { ProviderId } from '../main/providers';
 import type { CrashReport } from '../main/crash-reports';
 import type { QualificationResult } from '../main/release-qualification';
+import type { ReleaseState } from '../main/release-state';
 
 const api={
   getVersion:():Promise<string>=>ipcRenderer.invoke('app:get-version'),
@@ -71,6 +72,7 @@ const api={
     onProgress:(listener:(message:string)=>void):(()=>void)=>{const handler=(_:unknown,message:string)=>listener(message);ipcRenderer.on('installer:event',handler);return()=>ipcRenderer.removeListener('installer:event',handler)}
   },
   qualification:{
+    get:(projectId:string):Promise<ReleaseState|null>=>ipcRenderer.invoke('qualification:get',projectId),
     run:(projectId:string):Promise<QualificationResult>=>ipcRenderer.invoke('qualification:run',projectId),
     onProgress:(listener:(message:string)=>void):(()=>void)=>{const handler=(_:unknown,message:string)=>listener(message);ipcRenderer.on('qualification:event',handler);return()=>ipcRenderer.removeListener('qualification:event',handler)}
   },
