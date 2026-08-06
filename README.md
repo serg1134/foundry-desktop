@@ -4,14 +4,14 @@ Foundry is a conversational builder that turns a description into a working desk
 
 Generated apps can use Foundry's narrow desktop bridge for user-approved text-file open and save dialogs. The bridge never exposes arbitrary filesystem paths or Node.js to generated renderer code.
 
-Foundry is open-source software under the [MIT License](LICENSE). See the [Privacy Notice](PRIVACY.md) for its local data and AI-provider practices. Windows releases follow the documented [Code signing policy](CODE_SIGNING.md), and security issues should be reported using the process in [SECURITY.md](SECURITY.md).
+Foundry is open-source software under the [MIT License](LICENSE). See the [Privacy Notice](PRIVACY.md) for its local data and AI-provider practices. Windows releases follow the documented [release trust policy](CODE_SIGNING.md), and security issues should be reported using the process in [SECURITY.md](SECURITY.md).
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+> **Public beta:** current Windows installers are unsigned and may show a Microsoft SmartScreen warning. Download only from the official GitHub Releases page and verify the published SHA-256 checksum. See the [beta guide](docs/PUBLIC_BETA.md).
 
 ## Product workflow
 
 1. Create a Custom app, Notes, Task manager, Expense tracker, or Dashboard project.
-2. Add an OpenAI API key in AI settings. The key is encrypted with the operating-system credential service.
+2. Sign in to Foundry Cloud, or connect a supported AI provider with your own key. BYOK credentials are encrypted with the operating-system credential service.
 3. Describe an app or a focused change in the builder prompt.
 4. Follow the live Plan, Explore, Build, Verify, and Repair timeline; stop a run whenever needed.
 5. Foundry checks compile/runtime behavior, reviews a rendered screenshot, and performs one bounded visual repair when needed.
@@ -49,6 +49,13 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 Read the complete [Foundry Desktop Privacy Notice](PRIVACY.md).
 
 Unsigned installers work normally but may trigger Windows SmartScreen. `electron-builder` honors standard `CSC_LINK` and `CSC_KEY_PASSWORD` environment credentials for signed release builds.
+
+## Public beta
+
+- Install and verify a release with the [Public Beta Guide](docs/PUBLIC_BETA.md).
+- Report reproducible bugs with the GitHub issue templates.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
+- Do not upload secrets, API keys, private project files, or unredacted diagnostics to public issues.
 
 ## Development
 

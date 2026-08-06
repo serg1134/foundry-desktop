@@ -1,13 +1,4 @@
 /* Foundry's native-studio visual layer: inspired by SwiftUI materials and rhythm. */
-:root{
-  --bg:#090a0d;--panel:rgba(22,23,28,.78);--panel-2:rgba(31,32,38,.74);--panel-3:rgba(255,255,255,.075);
-  --line:rgba(255,255,255,.085);--border-soft:rgba(255,255,255,.085);--border-strong:rgba(255,255,255,.15);
-  --text:#f5f5f7;--muted:#98989f;--accent:#ff7548;--accent-2:#ff9a78;--green:#59d69d;
-  --radius-sm:10px;--radius-md:13px;--radius-lg:17px;--radius-xl:23px;
-  --surface-raised:rgba(38,39,46,.82);--surface-hover:rgba(255,255,255,.09);
-  --shadow-sm:0 4px 14px rgba(0,0,0,.18);--shadow-md:0 20px 60px rgba(0,0,0,.38);
-  --focus-ring:0 0 0 3px rgba(255,117,72,.2);--ease:cubic-bezier(.22,1,.36,1)
-}
 body{font-family:"SF Pro Display","SF Pro Text","Segoe UI Variable Text","Segoe UI",sans-serif;letter-spacing:-.006em;background:radial-gradient(circle at 50% -20%,#242530 0,#0c0d11 38%,#07080a 100%)}
 button,input,textarea,select{font-family:inherit}button{letter-spacing:-.006em}
 

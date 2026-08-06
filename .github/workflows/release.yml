@@ -21,16 +21,6 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - name: Require complete signing configuration
-        shell: powershell
-        env:
-          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
-          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          SIGNPATH_EXPECTED_PUBLISHER: ${{ vars.SIGNPATH_EXPECTED_PUBLISHER }}
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/assert-signing-config.ps1 -ApiToken $env:SIGNPATH_API_TOKEN -OrganizationId $env:SIGNPATH_ORGANIZATION_ID -ProjectSlug $env:SIGNPATH_PROJECT_SLUG -SigningPolicySlug $env:SIGNPATH_SIGNING_POLICY_SLUG -ArtifactConfigurationSlug $env:SIGNPATH_ARTIFACT_CONFIGURATION_SLUG -ExpectedPublisher $env:SIGNPATH_EXPECTED_PUBLISHER
       - name: Verify tag matches package version
         id: package-version
         shell: powershell
@@ -44,29 +34,6 @@ jobs:
         env:
           FOUNDRY_UPDATE_URL: https://github.com/serg1134/foundry-desktop/releases/latest/download
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1 -OutputDirectory release
-      - name: Upload unsigned installer for SignPath
-        id: upload-unsigned-installer
-        uses: actions/upload-artifact@v7
-        with:
-          name: foundry-unsigned-installer
-          path: release/Foundry-Setup-*.exe
-          if-no-files-found: error
-      - name: Submit installer to SignPath
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed-release
-          parameters: |
-            version: "${{ steps.package-version.outputs.version }}"
-      - name: Replace installer and finalize signed update artifacts
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-signed-artifact.ps1 -SignedArtifactDirectory signed-release -ReleaseDirectory release -ExpectedPublisher '${{ vars.SIGNPATH_EXPECTED_PUBLISHER }}'
       - name: Upload release trust evidence
         uses: actions/upload-artifact@v7
         with:
@@ -82,8 +49,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $signingNotice=@'
-          ## Code signing policy
+          ## Public beta trust notice
 
-          Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). See Foundry's [code signing policy](https://github.com/serg1134/foundry-desktop/blob/main/CODE_SIGNING.md) and [privacy notice](https://github.com/serg1134/foundry-desktop/blob/main/PRIVACY.md).
+          This Windows beta installer is currently **unsigned**, so Windows may show an unknown-publisher or SmartScreen warning. Download only from this official release and verify the included SHA-256 checksum before installation. See the [public beta guide](https://github.com/serg1134/foundry-desktop/blob/main/docs/PUBLIC_BETA.md), [release trust policy](https://github.com/serg1134/foundry-desktop/blob/main/CODE_SIGNING.md), and [privacy notice](https://github.com/serg1134/foundry-desktop/blob/main/PRIVACY.md).
           '@
           gh release create $env:GITHUB_REF_NAME release/Foundry-Setup-*.exe release/Foundry-Setup-*.exe.blockmap release/Foundry-Setup-*.exe.sha256 release/latest.yml release/dependency-audit.json --title "Foundry $env:GITHUB_REF_NAME" --generate-notes --notes $signingNotice

@@ -22,6 +22,7 @@ import { isProviderId, providerDefinition, validateProviderModel, type ProviderC
 import { CloudClient, resolveGatewayUrl } from './cloud-client';
 import { CrashReportService, type CrashSource } from './crash-reports';
 import { ReleaseQualificationService } from './release-qualification';
+import { ReleaseStateService } from './release-state';
 
 let workspace:WorkspaceService;
 const checkpoints=new CheckpointService();
@@ -35,6 +36,7 @@ let benchmarkWorkspace:WorkspaceService;
 let benchmarkRoot='';
 let benchmarkCampaignAbort:AbortController|null=null;
 const projectConfigs=new ProjectConfigService();
+const releaseStates=new ReleaseStateService();
 const runtimeWindows=new Map<string,BrowserWindow>();
 const runtimeDatabases=new Map<string,CapabilityDatabase>();
 const verificationDatabases=new Map<number,CapabilityDatabase>();
@@ -157,7 +159,8 @@ function registerWorkspaceHandlers():void{
   ipcMain.handle('runtime:open',async(event,id)=>{assertTrusted(event);await openRuntime(await projectById(id));return true});
   ipcMain.handle('installer:build',async(event,id)=>{assertTrusted(event);const project=await projectById(id);try{return await installer.build(project,message=>event.sender.send('installer:event',message))}catch(error){const message=error instanceof Error?error.message:String(error);await workspace.record(project,'installer.failure',message);throw error}});
   ipcMain.handle('installer:reveal',(event,path)=>{assertTrusted(event);if(typeof path!=='string')throw new Error('An installer path is required.');shell.showItemInFolder(path);return true});
-  ipcMain.handle('qualification:run',async(event,id)=>{assertTrusted(event);const project=await projectById(id),workflow=await verifiedWorkflow(project),service=new ReleaseQualificationService({root:join(app.getPath('userData'),'qualification'),verify:()=>verifyProject(project,workflow),build:onProgress=>installer.build(project,onProgress,{qualification:true}),onProgress:message=>event.sender.send('qualification:event',message)});return service.run()});
+  ipcMain.handle('qualification:get',async(event,id)=>{assertTrusted(event);return releaseStates.get(await projectById(id))});
+  ipcMain.handle('qualification:run',async(event,id)=>{assertTrusted(event);const project=await projectById(id),workflow=await verifiedWorkflow(project),service=new ReleaseQualificationService({root:join(app.getPath('userData'),'qualification'),verify:()=>verifyProject(project,workflow),build:onProgress=>installer.build(project,onProgress,{qualification:true}),onProgress:message=>event.sender.send('qualification:event',message)}),result=await service.run();await releaseStates.save(project,result);return result});
   ipcMain.handle('project-config:get',async(event,id)=>{assertTrusted(event);return projectConfigs.get(await projectById(id))});
   ipcMain.handle('project-config:save',async(event,id,value)=>{assertTrusted(event);if(!value||typeof value!=='object')throw new Error('Project configuration is required.');const project=await projectById(id),previous=await projectConfigs.get(project);let saved=await projectConfigs.save(project,value as ProjectConfig),changed=previous.ai.provider!==saved.ai.provider||previous.ai.model!==saved.ai.model||previous.ai.monthlyBudget!==saved.ai.monthlyBudget||previous.ai.requestsPerMinute!==saved.ai.requestsPerMinute;if(saved.ai.mode==='managed'&&(!saved.ai.credentialId||changed)){const access=await settings.hostedAccess(),client=new CloudClient(access.gatewayUrl,(input,init)=>net.fetch(input,init)),created=await client.createAppCredential(access.token,{name:`${saved.displayName} (${saved.appId})`,provider:saved.ai.provider,model:saved.ai.model,monthlyBudget:saved.ai.monthlyBudget,requestsPerMinute:saved.ai.requestsPerMinute});await projectConfigs.saveManagedToken(project,created.token);if(previous.ai.credentialId)await client.revokeAppCredential(access.token,previous.ai.credentialId);saved=await projectConfigs.save(project,{...saved,ai:{...saved.ai,credentialId:created.credential.id,gatewayUrl:access.gatewayUrl}})}else if(saved.ai.mode==='none'&&previous.ai.credentialId){const access=await settings.hostedAccess(),client=new CloudClient(access.gatewayUrl,(input,init)=>net.fetch(input,init));await client.revokeAppCredential(access.token,previous.ai.credentialId);await projectConfigs.clearManagedToken(project);saved=await projectConfigs.save(project,{...saved,ai:{...saved.ai,credentialId:undefined,gatewayUrl:undefined}})}await applyRuntimeConfig(project);return saved});
   ipcMain.handle('project-config:provision-ai',async(event,id,value)=>{assertTrusted(event);if(!value||typeof value!=='object')throw new Error('Project configuration is required.');const project=await projectById(id),config=await projectConfigs.save(project,value as ProjectConfig);if(config.ai.mode!=='managed')throw new Error('Select Foundry Managed AI first.');const access=await settings.hostedAccess(),client=new CloudClient(access.gatewayUrl,(input,init)=>net.fetch(input,init)),created=await client.createAppCredential(access.token,{name:`${config.displayName} (${config.appId})`,provider:config.ai.provider,model:config.ai.model,monthlyBudget:config.ai.monthlyBudget,requestsPerMinute:config.ai.requestsPerMinute});await projectConfigs.saveManagedToken(project,created.token);return projectConfigs.save(project,{...config,ai:{...config.ai,credentialId:created.credential.id,gatewayUrl:access.gatewayUrl}})});
@@ -311,7 +314,7 @@ function createSplash():BrowserWindow{
 
 function createWindow():void{
   const splash=createSplash();
-  const win=new BrowserWindow({title:'Foundry Desktop',width:1440,height:900,minWidth:960,minHeight:640,show:false,icon:appIconPath(),backgroundColor:'#090a0e',titleBarStyle:'hidden',titleBarOverlay:{color:'#0b0d12',symbolColor:'#9da3ae',height:40},webPreferences:{preload:join(currentDirectory,'../preload/index.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
+  const win=new BrowserWindow({title:'Foundry Desktop',width:1440,height:900,minWidth:960,minHeight:640,show:false,icon:appIconPath(),backgroundColor:'#e9ebef',...(process.platform==='win32'?{backgroundMaterial:'mica' as const}:{}),titleBarStyle:'hidden',titleBarOverlay:{color:'#e6e7e9',symbolColor:'#303238',height:40},webPreferences:{preload:join(currentDirectory,'../preload/index.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
   foundryWindow=win;win.on('closed',()=>{if(foundryWindow===win)foundryWindow=null});
   win.webContents.on('render-process-gone',(_event,details)=>void recordCrash('foundry-renderer',`Foundry renderer stopped: ${details.reason}. Exit code: ${details.exitCode}.`));
   win.once('ready-to-show',()=>{if(!splash.isDestroyed())splash.close();win.show();win.focus()});
