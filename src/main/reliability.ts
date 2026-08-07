@@ -3,13 +3,14 @@ import { classifyBenchmarkFailure, type BenchmarkFailureStage } from './benchmar
 
 export const MAX_BEHAVIOR_REPAIRS=2;
 export const MAX_VISUAL_REPAIRS=2;
+export const RELIABILITY_STAGE_TIMEOUT_MS=120_000;
 
 export type RepairAttempt={attempt:number;stage:BenchmarkFailureStage;failedChecks:number;checksPassed:number;checksTotal:number;progress:boolean};
 export type BehaviorRepairLoopResult={result:AgentResult;verification:VerificationResult;attempts:RepairAttempt[]};
-export type BehaviorRepairLoopOptions={request:string;result:AgentResult;workflow:WorkflowStep[];verification:VerificationResult;verify:()=>Promise<VerificationResult>;repair:(prompt:string,attempt:number)=>Promise<AgentResult>;onAttempt?:(attempt:RepairAttempt)=>void;maxAttempts?:number};
+export type BehaviorRepairLoopOptions={request:string;result:AgentResult;workflow:WorkflowStep[];verification:VerificationResult;verify:()=>Promise<VerificationResult>;repair:(prompt:string,attempt:number)=>Promise<AgentResult>;onAttempt?:(attempt:RepairAttempt)=>void;onTimeout?:(stage:string)=>void;maxAttempts?:number;stageTimeoutMs?:number};
 export type VisualRepairAttempt={attempt:number;issues:string[];behaviorRepairs:RepairAttempt[]};
 export type VisualRepairLoopResult={result:AgentResult;verification:VerificationResult;visual:VisualReview;attempts:VisualRepairAttempt[]};
-export type VisualRepairLoopOptions={request:string;result:AgentResult;workflow:WorkflowStep[];verification:VerificationResult;visual:VisualReview;verify:()=>Promise<VerificationResult>;review:()=>Promise<VisualReview>;repairVisual:(prompt:string,attempt:number)=>Promise<AgentResult>;repairBehavior:(prompt:string,attempt:number)=>Promise<AgentResult>;onVisualAttempt?:(attempt:number,issues:string[])=>void;onBehaviorAttempt?:(attempt:RepairAttempt)=>void;maxVisualAttempts?:number;maxBehaviorAttempts?:number};
+export type VisualRepairLoopOptions={request:string;result:AgentResult;workflow:WorkflowStep[];verification:VerificationResult;visual:VisualReview;verify:()=>Promise<VerificationResult>;review:()=>Promise<VisualReview>;repairVisual:(prompt:string,attempt:number)=>Promise<AgentResult>;repairBehavior:(prompt:string,attempt:number)=>Promise<AgentResult>;onVisualAttempt?:(attempt:number,issues:string[])=>void;onBehaviorAttempt?:(attempt:RepairAttempt)=>void;onTimeout?:(stage:string)=>void;maxVisualAttempts?:number;maxBehaviorAttempts?:number;stageTimeoutMs?:number};
 
 export function failedVerificationChecks(result:VerificationResult):VerificationCheck[]{
   return result.checks.filter(check=>!check.passed);
@@ -37,8 +38,8 @@ export function mergeRepairResult(base:AgentResult,repair:AgentResult,workflow:W
 export async function runBehaviorRepairLoop(options:BehaviorRepairLoopOptions):Promise<BehaviorRepairLoopResult>{
   const attempts:RepairAttempt[]=[];let result=options.result,verification=options.verification,previousPassed=passedChecks(verification),previousFailure=failureFingerprint(verification),stalled=0;
   for(let attempt=1;!verification.passed&&attempt<=(options.maxAttempts??MAX_BEHAVIOR_REPAIRS);attempt++){
-    const stage=verificationStage(verification),repair=await options.repair(behaviorRepairPrompt(options.request,verification,attempt,options.workflow),attempt);
-    result=mergeRepairResult(result,repair,options.workflow);verification=await options.verify();
+    const stage=verificationStage(verification),repair=await runReliabilityStage(`behavior repair ${attempt}`,()=>options.repair(behaviorRepairPrompt(options.request,verification,attempt,options.workflow),attempt),options.stageTimeoutMs,options.onTimeout);
+    result=mergeRepairResult(result,repair,options.workflow);verification=await runReliabilityStage(`behavior verification ${attempt}`,options.verify,options.stageTimeoutMs,options.onTimeout);
     const checksPassed=passedChecks(verification),fingerprint=failureFingerprint(verification),progress=verification.passed||checksPassed>previousPassed||fingerprint!==previousFailure;
     const record={attempt,stage,failedChecks:failedVerificationChecks(verification).length,checksPassed,checksTotal:verification.checks.length,progress};attempts.push(record);options.onAttempt?.(record);
     stalled=progress?0:stalled+1;previousPassed=checksPassed;previousFailure=fingerprint;
@@ -51,18 +52,25 @@ export async function runVisualRepairLoop(options:VisualRepairLoopOptions):Promi
   const attempts:VisualRepairAttempt[]=[];let result=options.result,verification=options.verification,visual=options.visual;
   for(let attempt=1;!visual.passed&&attempt<=(options.maxVisualAttempts??MAX_VISUAL_REPAIRS);attempt++){
     const issues=[...visual.issues];options.onVisualAttempt?.(attempt,issues);
-    result=mergeRepairResult(result,await options.repairVisual(visualRepairPrompt(options.request,issues,attempt),attempt),options.workflow);
-    verification=await options.verify();let behaviorRepairs:RepairAttempt[]=[];
+    result=mergeRepairResult(result,await runReliabilityStage(`visual repair ${attempt}`,()=>options.repairVisual(visualRepairPrompt(options.request,issues,attempt),attempt),options.stageTimeoutMs,options.onTimeout),options.workflow);
+    verification=await runReliabilityStage(`visual verification ${attempt}`,options.verify,options.stageTimeoutMs,options.onTimeout);let behaviorRepairs:RepairAttempt[]=[];
     if(!verification.passed){
-      const recovery=await runBehaviorRepairLoop({request:options.request,result,workflow:options.workflow,verification,verify:options.verify,repair:options.repairBehavior,onAttempt:options.onBehaviorAttempt,maxAttempts:options.maxBehaviorAttempts});
+      const recovery=await runBehaviorRepairLoop({request:options.request,result,workflow:options.workflow,verification,verify:options.verify,repair:options.repairBehavior,onAttempt:options.onBehaviorAttempt,onTimeout:options.onTimeout,maxAttempts:options.maxBehaviorAttempts,stageTimeoutMs:options.stageTimeoutMs});
       result=recovery.result;verification=recovery.verification;behaviorRepairs=recovery.attempts;
     }
     attempts.push({attempt,issues,behaviorRepairs});
     if(!verification.passed)break;
-    visual=await options.review();
+    visual=await runReliabilityStage(`visual review ${attempt}`,options.review,options.stageTimeoutMs,options.onTimeout);
   }
   return{result,verification,visual,attempts};
 }
 
 function passedChecks(result:VerificationResult):number{return result.checks.filter(check=>check.passed).length}
 function failureFingerprint(result:VerificationResult):string{return failedVerificationChecks(result).map(check=>`${check.name}:${check.detail}`.toLowerCase().replace(/\s+/g,' ').trim()).sort().join('|')}
+
+export async function runReliabilityStage<T>(stage:string,run:()=>Promise<T>,timeoutMs=RELIABILITY_STAGE_TIMEOUT_MS,onTimeout?:(stage:string)=>void):Promise<T>{
+  if(!Number.isFinite(timeoutMs)||timeoutMs<=0)return run();
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try{return await Promise.race([run(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{onTimeout?.(stage);reject(new Error(`Reliability ${stage} timed out after ${Math.ceil(timeoutMs/1000)} seconds.`))},timeoutMs)})])}
+  finally{if(timer)clearTimeout(timer)}
+}
