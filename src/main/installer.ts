@@ -123,7 +123,7 @@ function runBuilderChild(executable:string,args:string[],cwd:string,env:NodeJS.P
   return new Promise((resolve,reject)=>{
     // Foundry.exe is a Windows GUI executable. Capture output to a file because
     // piping its console streams can produce EPIPE in the Node child.
-    const logPath=join(cwd,'.foundry-tools','electron-builder.log'),log=openSync(logPath,'w'),child=spawn(executable,args,{cwd,env,windowsHide:true,stdio:['ignore',log,log]});
+    const logPath=join(cwd,'.foundry-tools','electron-builder.log'),log=openSync(logPath,'w'),child=spawn(executable,args,{cwd,env,shell:false,windowsHide:true,stdio:['ignore',log,log]});
     closeSync(log);
     let settled=false;
     const finish=(error?:Error)=>{if(settled)return;settled=true;clearTimeout(timeout);error?reject(error):resolve()};
