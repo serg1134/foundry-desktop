@@ -76,6 +76,8 @@ test('the primary studio action runs the guarded Test & Ship pipeline',async()=>
   assert.match(source,/verificationFailed/);
   assert.match(source,/attempting one safe repair/);
   assert.match(source,/rerunning every release check after repair/);
+  assert.match(source,/automatic release repair timed out after 150 seconds/);
+  assert.match(source,/agent\.cancel\(\)/);
   assert.match(source,/result\.passed&&result\.installerPath/);
   assert.match(theme,/content:"Test & Ship"/);
 });
