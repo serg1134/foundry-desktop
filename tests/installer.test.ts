@@ -64,6 +64,11 @@ test('packaged Foundry loads electron-builder from the unpacked dependency tree'
   assert.equal(electronBuilderPackagePath(repoPath,repoPath,false),join(repoPath,'node_modules','electron-builder'));
 });
 
+test('qualification packaging uses an isolated run directory',async()=>{const source=await readFile(join(process.cwd(),'src/main/installer.ts'),'utf8');assert.match(source,/qualificationId=options\.qualification\?randomUUID\(\):undefined/);assert.match(source,/qualification-releases'.*qualificationId/s)});
+
+test('qualification packaging avoids resource-heavy icon conversion',async()=>{const source=await readFile(join(process.cwd(),'src/main/installer.ts'),'utf8');assert.match(source,/packagedIcon=config\.icon&&!options\.qualification/)});
+test('packaging does not leak builder-only Node options into Foundry',async()=>{const source=await readFile(join(process.cwd(),'src/main/installer.ts'),'utf8');assert.doesNotMatch(source,/process\.env\.NODE_USE_SYSTEM_CA\s*=/);assert.doesNotMatch(source,/process\.env\.NODE_OPTIONS\s*=/);assert.match(source,/builderEnvironment/)});
+
 test('packaged database hardening emits a compilable migration and recovery runtime',()=>{
   const input="let database;const db=()=>{},validatePart=()=>{};ipcMain.handle('foundry-desktop:clipboard-write',()=>{});";
   const source=hardenPackagedDatabase(input);
