@@ -8,6 +8,8 @@ export type MaybePromise<T>=T|Promise<T>;
 export interface GatewayDataStore{
  register(email:string,password:string):Promise<{account:GatewayAccount;token:string}>;
  login(email:string,password:string):Promise<{account:GatewayAccount;token:string}>;
+ createPasswordReset(email:string):MaybePromise<{email:string;token:string}|null>;
+ resetPassword(token:string,password:string):MaybePromise<void>;
  authenticate(token:string):MaybePromise<GatewayAccount>;
  createAppCredential(accountId:string,input:{name:string;provider:AppCredential['provider'];model:string;monthlyBudget:number;requestsPerMinute:number}):MaybePromise<{credential:AppCredential;token:string}>;
  listAppCredentials(accountId:string):MaybePromise<AppCredential[]>;
