@@ -4,6 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { addPermissionDisclosure, electronBuilderPackagePath, hardenPackagedDatabase, hardenPackagedRuntime, packageTargetFor } from '../src/main/installer.ts';
 
+test('generated-app packaging remains a packaged optional dependency',async()=>{
+  const manifest=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')) as {dependencies?:Record<string,string>;optionalDependencies?:Record<string,string>};
+  assert.equal(manifest.dependencies?.['electron-builder'],undefined);
+  assert.equal(manifest.optionalDependencies?.['electron-builder'],'26.15.3');
+});
+
 test('generated desktop runtime applies configured identity and window behavior',async()=>{
   const source=await readFile(new URL('../src/main/installer.ts',import.meta.url),'utf8');
   assert.match(source,/title:config\.displayName/);
