@@ -35,7 +35,7 @@ body:
     id: version
     attributes:
       label: Foundry version
-      placeholder: 0.7.9
+      placeholder: 0.7.10
   - type: checkboxes
     id: privacy
     attributes:
