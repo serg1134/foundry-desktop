@@ -4,15 +4,32 @@ import {readFile} from 'node:fs/promises';
 
 const read=(path:string)=>readFile(new URL(`../${path}`,import.meta.url),'utf8');
 
-test('public beta documentation clearly distinguishes existing unsigned and future signed releases',async()=>{
+test('public beta documentation identifies signed releases and safe installation steps',async()=>{
   const[readme,policy,guide]=await Promise.all([read('README.md'),read('CODE_SIGNING.md'),read('docs/PUBLIC_BETA.md')]);
-  assert.match(readme,/previously published installers remain unsigned/i);
+  assert.match(readme,/v0\.7\.13 and later Windows releases are Authenticode-signed/i);
   assert.match(policy,/existing unsigned beta releases remain clearly labeled/i);
   assert.match(policy,/certificate profile is active/i);
   assert.match(guide,/Get-FileHash/);
   assert.match(guide,/SHA256/);
+  assert.match(guide,/Digital Signatures/i);
+  assert.match(guide,/Sean Avalos/i);
   assert.match(guide,/Never publish API keys/i);
   assert.doesNotMatch(readme,/Free code signing provided by/i);
+});
+
+test('closed beta mission and feedback form cover the complete desktop journey',async()=>{
+  const[mission,feedback]=await Promise.all([
+    read('docs/CLOSED_BETA_TEST.md'),
+    read('.github/ISSUE_TEMPLATE/beta-feedback.yml'),
+  ]);
+  assert.match(mission,/Test & Ship/i);
+  assert.match(mission,/Start Menu/i);
+  assert.match(mission,/persistence/i);
+  assert.match(mission,/uninstall/i);
+  for(const id of ['install','generated_app','persistence','uninstall','friction','recommend']){
+    assert.match(feedback,new RegExp(`id: ${id}`));
+  }
+  assert.match(feedback,/Never include passwords, API keys/i);
 });
 
 test('tagged releases publish verification evidence and support gated Azure signing',async()=>{
