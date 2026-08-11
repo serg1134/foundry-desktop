@@ -2,7 +2,7 @@
 
 Foundry release binaries are produced from the public [Foundry Desktop source repository](https://github.com/serg1134/foundry-desktop) by its tag-triggered GitHub Actions workflow.
 
-Foundry is currently distributed as an **unsigned public beta**. SignPath Foundation has not approved the project for its free signing program. Foundry does not claim that current artifacts are signed or endorsed by SignPath. A commercial signing provider may be added later; this policy will be updated before any signed release is published.
+Foundry's release workflow supports Authenticode signing through Microsoft Azure Artifact Signing. Identity validation is complete, the `foundry-public-trust` certificate profile is active, and GitHub uses repository-scoped OIDC with no long-lived signing secret. Existing unsigned beta releases remain clearly labeled; future tagged releases are signed only when every verification gate passes.
 
 ## Team roles
 
@@ -16,8 +16,10 @@ Every contributor with repository or release access must enable multi-factor aut
 - Only tagged commits from this public repository are eligible for public release.
 - The release workflow installs dependencies from the committed lockfile, runs the automated test suite and production build, and generates the Windows installer and updater metadata from the same tagged revision.
 - Artifact rules enforce the Foundry product name and a version matching the source tag and package metadata.
-- Signing credentials and private keys must never be stored in the repository if commercial signing is introduced.
-- The current release gate verifies the SHA-256 checksum, updater SHA-512 digest, dependency audit, build, and automated tests before publication.
+- GitHub authenticates to Azure with a repository-scoped OpenID Connect federated credential. No signing private key or long-lived Azure client secret is stored in GitHub.
+- The Artifact Signing principal receives only the `Artifact Signing Certificate Profile Signer` role on the selected certificate profile.
+- Signed release gates require a valid Authenticode chain, RFC 3161 timestamp, and an exact expected certificate subject before publication.
+- Because signing changes the installer bytes, the workflow regenerates the blockmap, updater SHA-512 digest, and SHA-256 checksum after signing and verifies all three before publication.
 - Every release publishes its checksum, updater metadata, and dependency audit with the installer.
 - If the signing service, repository, or release pipeline may be compromised, releases stop while access is revoked, the incident is investigated, and affected versions are identified publicly.
 
@@ -29,4 +31,22 @@ The installer identifies the application and publisher, creates shortcuts only t
 
 ## Downloads and signing identity
 
-Official installers are available only from [GitHub Releases](https://github.com/serg1134/foundry-desktop/releases). While the beta remains unsigned, every release must say so prominently and publish a matching `.sha256` file and dependency audit. Users should verify the checksum before installation and expect Windows SmartScreen to show an unknown-publisher warning.
+Official installers are available only from [GitHub Releases](https://github.com/serg1134/foundry-desktop/releases). Every release publishes a matching `.sha256` file, updater metadata, and dependency audit. Unsigned beta releases say so prominently. Signed releases identify Azure Artifact Signing in the release notes and must pass the signer and timestamp gate before publication.
+
+## GitHub configuration
+
+The tagged release workflow uses these protected repository secrets:
+
+- `AZURE_CLIENT_ID`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+
+The secrets and variables are scoped to the protected `release-signing` GitHub environment, which permits deployment only from version tags matching `v*.*.*`. It uses these environment variables:
+
+- `AZURE_ARTIFACT_SIGNING_ENABLED` (`true` only after setup is complete)
+- `AZURE_ARTIFACT_SIGNING_ENDPOINT` (for Foundry, `https://eus.codesigning.azure.net/`)
+- `AZURE_ARTIFACT_SIGNING_ACCOUNT` (for Foundry, `foundry-app-builder`)
+- `AZURE_ARTIFACT_SIGNING_PROFILE` (for Foundry, `foundry-public-trust`)
+- `AZURE_EXPECTED_PUBLISHER` (the complete Authenticode subject, beginning with `CN=`)
+
+The Entra application must trust only the intended GitHub repository and release-tag subject through OIDC. Enable signing only after the public-trust certificate profile exists and the application principal has the `Artifact Signing Certificate Profile Signer` role at the narrowest available scope.
