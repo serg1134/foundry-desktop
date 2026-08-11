@@ -55,6 +55,33 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign unpacked Windows application with Azure Artifact Signing
+        if: vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\release\win-unpacked
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Foundry AI Desktop App Builder
+          description-url: https://foundryappbuilder.com/
+      - name: Package signed Windows application
+        if: vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        shell: powershell
+        env:
+          FOUNDRY_UPDATE_URL: https://github.com/serg1134/foundry-desktop/releases/latest/download
+        run: |
+          $signedApp=Join-Path $env:RUNNER_TEMP "foundry-signed-app-$env:GITHUB_RUN_ID"
+          Copy-Item -LiteralPath release\win-unpacked -Destination $signedApp -Recurse
+          npx electron-builder --win nsis --x64 --prepackaged $signedApp --publish never "--config.directories.output=release" '--config.publish.provider=generic' "--config.publish.url=$env:FOUNDRY_UPDATE_URL"
+          if(-not(Test-Path -LiteralPath release\win-unpacked\Foundry.exe)){
+            Copy-Item -LiteralPath $signedApp -Destination release\win-unpacked -Recurse
+          }
       - name: Sign Windows installer with Azure Artifact Signing
         if: vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
         uses: azure/artifact-signing-action@v2
@@ -62,8 +89,7 @@ jobs:
           endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
           signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
-          files-folder: ${{ github.workspace }}\release
-          files-folder-filter: exe
+          files: ${{ github.workspace }}\release\Foundry-Setup-${{ steps.package-version.outputs.version }}.exe
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
@@ -81,7 +107,7 @@ jobs:
         shell: powershell
         env:
           AZURE_EXPECTED_PUBLISHER: ${{ vars.AZURE_EXPECTED_PUBLISHER }}
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -ReleaseDirectory release -RequireSigned -ExpectedPublisher $env:AZURE_EXPECTED_PUBLISHER
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -ReleaseDirectory release -RequireSigned -RequireSignedApplication -ExpectedPublisher $env:AZURE_EXPECTED_PUBLISHER
       - name: Verify unsigned beta release
         if: vars.AZURE_ARTIFACT_SIGNING_ENABLED != 'true'
         shell: powershell

@@ -26,7 +26,10 @@ test('tagged releases publish verification evidence and support gated Azure sign
   assert.match(workflow,/environment:\s*release-signing/i);
   assert.match(workflow,/AZURE_ARTIFACT_SIGNING_ENABLED/);
   assert.match(workflow,/finalize-signed-release\.mjs/);
-  assert.match(workflow,/verify-release\.ps1[^\n]+-RequireSigned/);
+  assert.match(workflow,/files-folder:\s*\$\{\{ github\.workspace \}\}\\release\\win-unpacked/i);
+  assert.match(workflow,/files-folder-recurse:\s*true/i);
+  assert.match(workflow,/--prepackaged \$signedApp/i);
+  assert.match(workflow,/verify-release\.ps1[^\n]+-RequireSigned[^\n]+-RequireSignedApplication/);
   assert.doesNotMatch(workflow,/SIGNPATH_API_TOKEN/);
 });
 

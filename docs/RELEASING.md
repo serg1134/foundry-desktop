@@ -17,7 +17,7 @@ Upload the generated `latest.yml`, `Foundry-Setup-<version>.exe`, `.blockmap`, a
 
 ## Build a signed production release
 
-Production signing runs only in the tag-triggered GitHub workflow. GitHub exchanges a repository-scoped OIDC token for short-lived Azure access, signs the installer through Azure Artifact Signing, regenerates the changed blockmap and hashes, and verifies the Authenticode publisher and timestamp. No `.pfx`, private key, Azure client secret, `CSC_LINK`, or `CSC_KEY_PASSWORD` belongs in the repository.
+Production signing runs only in the tag-triggered GitHub workflow. GitHub exchanges a repository-scoped OIDC token for short-lived Azure access, signs the unpacked application executables and DLLs, packages those signed files, and then signs the final installer through Azure Artifact Signing. It regenerates the changed blockmap and hashes and verifies the Authenticode publisher and timestamp on both `Foundry.exe` and the installer. No `.pfx`, private key, Azure client secret, `CSC_LINK`, or `CSC_KEY_PASSWORD` belongs in the repository.
 
 After the workflow succeeds, install on a clean machine, check the signature in Windows file Properties, test updating from the prior version, restart, and confirm the new version in About.
 
