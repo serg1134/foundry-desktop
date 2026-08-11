@@ -75,10 +75,14 @@ jobs:
         shell: powershell
         env:
           FOUNDRY_UPDATE_URL: https://github.com/serg1134/foundry-desktop/releases/latest/download
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+          AZURE_EXPECTED_PUBLISHER: ${{ vars.AZURE_EXPECTED_PUBLISHER }}
         run: |
           $signedApp=Join-Path $env:RUNNER_TEMP "foundry-signed-app-$env:GITHUB_RUN_ID"
           Copy-Item -LiteralPath release\win-unpacked -Destination $signedApp -Recurse
-          npx electron-builder --win nsis --x64 --prepackaged $signedApp --publish never "--config.directories.output=release" '--config.publish.provider=generic' "--config.publish.url=$env:FOUNDRY_UPDATE_URL"
+          npx electron-builder --win nsis --x64 --prepackaged $signedApp --publish never "--config.directories.output=release" '--config.publish.provider=generic' "--config.publish.url=$env:FOUNDRY_UPDATE_URL" "--config.win.azureSignOptions.publisherName=$env:AZURE_EXPECTED_PUBLISHER" "--config.win.azureSignOptions.endpoint=$env:AZURE_ARTIFACT_SIGNING_ENDPOINT" "--config.win.azureSignOptions.codeSigningAccountName=$env:AZURE_ARTIFACT_SIGNING_ACCOUNT" "--config.win.azureSignOptions.certificateProfileName=$env:AZURE_ARTIFACT_SIGNING_PROFILE"
           if(-not(Test-Path -LiteralPath release\win-unpacked\Foundry.exe)){
             Copy-Item -LiteralPath $signedApp -Destination release\win-unpacked -Recurse
           }
@@ -108,6 +112,12 @@ jobs:
         env:
           AZURE_EXPECTED_PUBLISHER: ${{ vars.AZURE_EXPECTED_PUBLISHER }}
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -ReleaseDirectory release -RequireSigned -RequireSignedApplication -ExpectedPublisher $env:AZURE_EXPECTED_PUBLISHER
+      - name: Verify installed application and uninstaller signatures
+        if: vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        shell: powershell
+        env:
+          AZURE_EXPECTED_PUBLISHER: ${{ vars.AZURE_EXPECTED_PUBLISHER }}
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-installed-release.ps1 -ReleaseDirectory release -ExpectedPublisher $env:AZURE_EXPECTED_PUBLISHER
       - name: Verify unsigned beta release
         if: vars.AZURE_ARTIFACT_SIGNING_ENABLED != 'true'
         shell: powershell
