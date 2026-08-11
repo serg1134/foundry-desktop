@@ -15,33 +15,23 @@ npm.cmd run release:win
 
 Upload the generated `latest.yml`, `Foundry-Setup-<version>.exe`, `.blockmap`, and `.sha256` together. Installers only check the update URL supplied when that installer was built. The release script uses the Windows temporary directory by default to avoid sync-client file locks.
 
-## Build a signed production release locally
+## Build a signed production release
 
-Set the standard electron-builder certificate variables only in the secure release environment:
+Production signing runs only in the tag-triggered GitHub workflow. GitHub exchanges a repository-scoped OIDC token for short-lived Azure access, signs the installer through Azure Artifact Signing, regenerates the changed blockmap and hashes, and verifies the Authenticode publisher and timestamp. No `.pfx`, private key, Azure client secret, `CSC_LINK`, or `CSC_KEY_PASSWORD` belongs in the repository.
 
-```powershell
-$env:FOUNDRY_UPDATE_URL='https://downloads.example.com/foundry/windows'
-$env:CSC_LINK='C:\secure\foundry-signing-certificate.pfx'
-$env:CSC_KEY_PASSWORD='<certificate password>'
-npm.cmd run release:win
-```
+After the workflow succeeds, install on a clean machine, check the signature in Windows file Properties, test updating from the prior version, restart, and confirm the new version in About.
 
-Never commit the certificate or password. After building, verify the signature in Windows file Properties, install on a clean machine, check for updates from the prior version, download, restart, and confirm the new version in About.
+## Current signing status
 
-## Current public-beta release mode
+Azure identity validation is complete, the `foundry-public-trust` public-trust certificate profile is active, GitHub OIDC is restricted to the `release-signing` environment, and the application principal has the scoped signer role. The protected environment sets `AZURE_ARTIFACT_SIGNING_ENABLED=true`; the workflow signs and timestamps the installer, regenerates updater metadata and checksums, and refuses publication unless the signature subject matches `AZURE_EXPECTED_PUBLISHER`.
 
-SignPath Foundation did not approve Foundry for its free signing program. Tagged releases therefore publish an explicitly labeled unsigned beta installer together with its checksum, updater metadata, and dependency audit. Do not describe these artifacts as signed or endorsed by SignPath.
-
-Before introducing commercial code signing, update `CODE_SIGNING.md`, configure the secure release environment, restore signature validation in the release workflow, and test the full update path. Standard electron-builder signing uses:
-
-- `CSC_LINK`
-- `CSC_KEY_PASSWORD`
+Existing unsigned beta releases remain unsigned and clearly labeled. Never bypass the signature verification gate or publish a tagged production release through an environment other than `release-signing`.
 
 ## Version checklist
 
 1. Update `version` in `package.json` and `package-lock.json`.
 2. Run `npm test` and `npm run build`.
 3. Build using `npm run release:win`; the script validates the checksum and required update artifacts.
-4. Verify the `.sha256` file against the installer. For a future signed release, also run `scripts/verify-release.ps1 -ReleaseDirectory <path> -RequireSigned`.
+4. Verify the `.sha256` file against the installer. For a signed release, also run `scripts/verify-release.ps1 -ReleaseDirectory <path> -RequireSigned -ExpectedPublisher '<certificate subject>'`.
 5. Publish all update artifacts atomically so `latest.yml` never points to a missing installer.
 6. Test install, update, rollback expectations, and SmartScreen reputation.

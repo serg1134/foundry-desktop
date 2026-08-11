@@ -6,7 +6,7 @@ Generated apps can use Foundry's narrow desktop bridge for user-approved text-fi
 
 Foundry is open-source software under the [MIT License](LICENSE). See the [Privacy Notice](PRIVACY.md) for its local data and AI-provider practices. Windows releases follow the documented [release trust policy](CODE_SIGNING.md), and security issues should be reported using the process in [SECURITY.md](SECURITY.md).
 
-> **Public beta:** current Windows installers are unsigned and may show a Microsoft SmartScreen warning. Download only from the official GitHub Releases page and verify the published SHA-256 checksum. See the [beta guide](docs/PUBLIC_BETA.md).
+> **Public beta:** previously published installers remain unsigned unless their release trust notice says otherwise. Azure Artifact Signing is configured for future tagged releases; signed releases identify the signer in their trust notice. Download only from the official GitHub Releases page and verify the published SHA-256 checksum. See the [beta guide](docs/PUBLIC_BETA.md).
 
 ## Product workflow
 
@@ -48,7 +48,7 @@ Foundry is open-source software under the [MIT License](LICENSE). See the [Priva
 
 Read the complete [Foundry Desktop Privacy Notice](PRIVACY.md).
 
-Unsigned installers work normally but may trigger Windows SmartScreen. `electron-builder` honors standard `CSC_LINK` and `CSC_KEY_PASSWORD` environment credentials for signed release builds.
+Unsigned installers work normally but may trigger Windows SmartScreen. The tagged Windows release workflow supports passwordless GitHub OIDC authentication to Microsoft Azure Artifact Signing and validates the signer, timestamp, updater metadata, and checksums before publishing a signed release.
 
 ## Public beta
 

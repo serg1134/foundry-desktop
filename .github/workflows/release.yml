@@ -8,10 +8,12 @@ on:
 permissions:
   actions: read
   contents: write
+  id-token: write
 
 jobs:
   release:
     runs-on: windows-latest
+    environment: release-signing
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,6 +36,56 @@ jobs:
         env:
           FOUNDRY_UPDATE_URL: https://github.com/serg1134/foundry-desktop/releases/latest/download
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1 -OutputDirectory release
+      - name: Validate Artifact Signing configuration
+        if: vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        shell: powershell
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+          AZURE_EXPECTED_PUBLISHER: ${{ vars.AZURE_EXPECTED_PUBLISHER }}
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/assert-artifact-signing-config.ps1
+      - name: Sign in to Azure with GitHub OIDC
+        if: vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign Windows installer with Azure Artifact Signing
+        if: vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\release
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Foundry AI Desktop App Builder
+          description-url: https://foundryappbuilder.com/
+      - name: Rebuild updater metadata for signed installer
+        if: vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        shell: powershell
+        run: |
+          $installer=Get-ChildItem -LiteralPath release -Filter 'Foundry-Setup-*.exe' -File | Select-Object -First 1
+          if(-not $installer){throw 'The signed Foundry installer was not found.'}
+          node scripts/finalize-signed-release.mjs $installer.FullName release
+      - name: Verify signed release
+        if: vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        shell: powershell
+        env:
+          AZURE_EXPECTED_PUBLISHER: ${{ vars.AZURE_EXPECTED_PUBLISHER }}
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -ReleaseDirectory release -RequireSigned -ExpectedPublisher $env:AZURE_EXPECTED_PUBLISHER
+      - name: Verify unsigned beta release
+        if: vars.AZURE_ARTIFACT_SIGNING_ENABLED != 'true'
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -ReleaseDirectory release
       - name: Upload release trust evidence
         uses: actions/upload-artifact@v7
         with:
@@ -48,9 +100,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $signingNotice=@'
+          if('${{ vars.AZURE_ARTIFACT_SIGNING_ENABLED }}' -eq 'true'){
+            $signingNotice=@'
+          ## Release trust notice
+
+          This Windows installer is Authenticode-signed through Microsoft Azure Artifact Signing and timestamped. The release workflow verifies the signer, timestamp, updater SHA-512 digest, and published SHA-256 checksum before publication. See the [release trust policy](https://github.com/serg1134/foundry-desktop/blob/main/CODE_SIGNING.md) and [privacy notice](https://github.com/serg1134/foundry-desktop/blob/main/PRIVACY.md).
+          '@
+          }else{
+            $signingNotice=@'
           ## Public beta trust notice
 
           This Windows beta installer is currently **unsigned**, so Windows may show an unknown-publisher or SmartScreen warning. Download only from this official release and verify the included SHA-256 checksum before installation. See the [public beta guide](https://github.com/serg1134/foundry-desktop/blob/main/docs/PUBLIC_BETA.md), [release trust policy](https://github.com/serg1134/foundry-desktop/blob/main/CODE_SIGNING.md), and [privacy notice](https://github.com/serg1134/foundry-desktop/blob/main/PRIVACY.md).
           '@
+          }
           gh release create $env:GITHUB_REF_NAME release/Foundry-Setup-*.exe release/Foundry-Setup-*.exe.blockmap release/Foundry-Setup-*.exe.sha256 release/latest.yml release/dependency-audit.json --title "Foundry $env:GITHUB_REF_NAME" --generate-notes --notes $signingNotice
