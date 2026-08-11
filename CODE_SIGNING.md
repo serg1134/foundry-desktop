@@ -18,7 +18,8 @@ Every contributor with repository or release access must enable multi-factor aut
 - Artifact rules enforce the Foundry product name and a version matching the source tag and package metadata.
 - GitHub authenticates to Azure with a repository-scoped OpenID Connect federated credential. No signing private key or long-lived Azure client secret is stored in GitHub.
 - The Artifact Signing principal receives only the `Artifact Signing Certificate Profile Signer` role on the selected certificate profile.
-- Signed release gates require a valid Authenticode chain, RFC 3161 timestamp, and an exact expected certificate subject before publication.
+- The unpacked `Foundry.exe` and native DLLs are signed before electron-builder packages them, then the final installer is signed separately.
+- Signed release gates require valid Authenticode chains, RFC 3161 timestamps, and an exact expected certificate subject on both `Foundry.exe` and the installer before publication.
 - Because signing changes the installer bytes, the workflow regenerates the blockmap, updater SHA-512 digest, and SHA-256 checksum after signing and verifies all three before publication.
 - Every release publishes its checksum, updater metadata, and dependency audit with the installer.
 - If the signing service, repository, or release pipeline may be compromised, releases stop while access is revoked, the incident is investigated, and affected versions are identified publicly.

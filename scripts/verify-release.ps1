@@ -1,6 +1,7 @@
 param(
   [Parameter(Mandatory=$true)][string]$ReleaseDirectory,
   [switch]$RequireSigned,
+  [switch]$RequireSignedApplication,
   [string]$ExpectedPublisher
 )
 $ErrorActionPreference='Stop'
@@ -29,5 +30,15 @@ if($RequireSigned){
   if(-not $signature.TimeStamperCertificate){throw 'The installer signature is missing a trusted timestamp.'}
   if([string]::IsNullOrWhiteSpace($ExpectedPublisher)){throw 'ExpectedPublisher is required when RequireSigned is enabled.'}
   if($signature.SignerCertificate.Subject -ne $ExpectedPublisher){throw "Unexpected signer. Expected '$ExpectedPublisher' but received '$($signature.SignerCertificate.Subject)'."}
+}
+if($RequireSignedApplication){
+  if([string]::IsNullOrWhiteSpace($ExpectedPublisher)){throw 'ExpectedPublisher is required when RequireSignedApplication is enabled.'}
+  $application=Join-Path $root 'win-unpacked\Foundry.exe'
+  if(-not(Test-Path -LiteralPath $application -PathType Leaf)){throw "The unpacked Foundry application was not found: $application"}
+  $applicationSignature=Get-AuthenticodeSignature -LiteralPath $application
+  if($applicationSignature.Status -ne 'Valid'){throw "A valid Authenticode signature is required on Foundry.exe; status is $($applicationSignature.Status)."}
+  if(-not $applicationSignature.SignerCertificate){throw 'The Foundry.exe signature has no signer certificate.'}
+  if(-not $applicationSignature.TimeStamperCertificate){throw 'The Foundry.exe signature is missing a trusted timestamp.'}
+  if($applicationSignature.SignerCertificate.Subject -ne $ExpectedPublisher){throw "Unexpected Foundry.exe signer. Expected '$ExpectedPublisher' but received '$($applicationSignature.SignerCertificate.Subject)'."}
 }
 [pscustomobject]@{Installer=$installer.Name;Bytes=$installer.Length;SHA256=$actual;SHA512=$actualSha512;Signature=$signature.Status.ToString();Signer=$signature.SignerCertificate.Subject;Timestamped=[bool]$signature.TimeStamperCertificate} | Format-List
