@@ -16,7 +16,7 @@ test('public beta documentation clearly distinguishes existing unsigned and futu
 });
 
 test('tagged releases publish verification evidence and support gated Azure signing',async()=>{
-  const workflow=await read('.github/workflows/release.yml');
+  const[workflow,installedVerification]=await Promise.all([read('.github/workflows/release.yml'),read('scripts/verify-installed-release.ps1')]);
   assert.match(workflow,/Foundry-Setup-\*\.exe\.sha256/);
   assert.match(workflow,/dependency-audit\.json/);
   assert.match(workflow,/currently \*\*unsigned\*\*/i);
@@ -29,7 +29,13 @@ test('tagged releases publish verification evidence and support gated Azure sign
   assert.match(workflow,/files-folder:\s*\$\{\{ github\.workspace \}\}\\release\\win-unpacked/i);
   assert.match(workflow,/files-folder-recurse:\s*true/i);
   assert.match(workflow,/--prepackaged \$signedApp/i);
+  assert.match(workflow,/azureSignOptions\.publisherName/i);
+  assert.match(workflow,/azureSignOptions\.codeSigningAccountName/i);
+  assert.match(workflow,/verify-installed-release\.ps1/i);
   assert.match(workflow,/verify-release\.ps1[^\n]+-RequireSigned[^\n]+-RequireSignedApplication/);
+  assert.match(installedVerification,/Uninstall Foundry\.exe/i);
+  assert.match(installedVerification,/Get-AuthenticodeSignature/i);
+  assert.match(installedVerification,/TimeStamperCertificate/i);
   assert.doesNotMatch(workflow,/SIGNPATH_API_TOKEN/);
 });
 
