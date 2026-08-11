@@ -6,7 +6,7 @@ Generated apps can use Foundry's narrow desktop bridge for user-approved text-fi
 
 Foundry is open-source software under the [MIT License](LICENSE). See the [Privacy Notice](PRIVACY.md) for its local data and AI-provider practices. Windows releases follow the documented [release trust policy](CODE_SIGNING.md), and security issues should be reported using the process in [SECURITY.md](SECURITY.md).
 
-> **Public beta:** previously published installers remain unsigned unless their release trust notice says otherwise. Azure Artifact Signing is configured for future tagged releases; signed releases identify the signer in their trust notice. Download only from the official GitHub Releases page and verify the published SHA-256 checksum. See the [beta guide](docs/PUBLIC_BETA.md).
+> **Public beta:** Foundry v0.7.13 and later Windows releases are Authenticode-signed and timestamped through Microsoft Azure Artifact Signing. Earlier installers remain unsigned unless their release trust notice says otherwise. Download only from the official GitHub Releases page and verify the published SHA-256 checksum. See the [beta guide](docs/PUBLIC_BETA.md).
 
 ## Product workflow
 
@@ -53,6 +53,7 @@ Unsigned installers work normally but may trigger Windows SmartScreen. The tagge
 ## Public beta
 
 - Install and verify a release with the [Public Beta Guide](docs/PUBLIC_BETA.md).
+- Run the complete [Closed Beta Test Mission](docs/CLOSED_BETA_TEST.md) and tell us where the experience breaks down.
 - Report reproducible bugs with the GitHub issue templates.
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
 - Do not upload secrets, API keys, private project files, or unredacted diagnostics to public issues.
